@@ -7,48 +7,55 @@ name = "hsa-dpo"
 version = "1.0.0"
 description = "Detecting and Mitigating Hallucination in Large Vision Language Models via Fine-Grained AI Feedback"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10,<3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
 ]
 dependencies = [
-    # Core ML frameworks - keep exact versions for compatibility
-    "torch==2.0.1",
-    "torchvision==0.15.2",
-    "transformers==4.31.0",
-    "tokenizers>=0.12.1,<0.14",
-    "sentencepiece==0.1.99",
-    "accelerate==0.22.0",
-    "peft==0.4.0",
-    "bitsandbytes==0.41.0",
-    "deepspeed==0.9.5",
+    # Core runtime dependencies for a Windows / Python 3.12 setup.
+    # Torch and torchvision are left as broad compatible ranges so pip can
+    # reuse an existing local install instead of forcing the original Linux-era pins.
+    "torch>=2.6,<2.9",
+    "torchvision>=0.21,<0.24",
+    "transformers>=4.43,<4.46",
+    "tokenizers>=0.19,<0.21",
+    "sentencepiece>=0.2,<0.3",
+    "accelerate>=0.34,<1",
+    "peft>=0.13,<0.19",
     
     # LLaVA dependencies (LLaVA code is included in hsa_dpo/models/llava-v1_5/)
-    "einops==0.6.1",
+    "einops>=0.8,<1",
     "einops-exts==0.0.4",
-    "timm==0.6.13",
+    "timm>=1.0,<2",
     
     # Data processing
-    "numpy==1.26.1",
+    "numpy>=1.26,<3",
     "Pillow",
-    "datasets",
-    "jsonlines",
-    "scikit-learn==1.2.2",
+    "datasets>=2.19,<4",
+    "jsonlines>=4,<5",
+    "scikit-learn>=1.5,<2",
     
     # Training utilities
     "tensorboard",
     "wandb",
     
     # Additional required utilities
-    "shortuuid",
-    "requests",
-    "pydantic<2,>=1",
-    "fairscale==0.4.4",
+    "shortuuid>=1,<2",
+    "requests>=2.31,<3",
 ]
 
 [project.optional-dependencies]
-flash-attn = ["flash-attn"]
+linux-train = [
+    # Keep the original heavy training stack optional because these packages
+    # are commonly problematic on Windows and are not needed for basic editing
+    # or CPU inference workflows.
+    "bitsandbytes>=0.43,<1; platform_system != 'Windows'",
+    "deepspeed>=0.15,<1; platform_system != 'Windows'",
+    "fairscale>=0.4.13,<1; platform_system != 'Windows'",
+]
+flash-attn = ["flash-attn; platform_system != 'Windows'"]
 dev = ["pytest", "black", "flake8"]
 
 [project.urls]
