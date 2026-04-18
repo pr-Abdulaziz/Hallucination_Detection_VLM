@@ -31,6 +31,14 @@ It does not re-explain the research pipeline — see [README.md](README.md) for 
 │   │   └── llava-v1_5/                           ← bundled LLaVA code + DPO entrypoint
 │   └── trainer/                                  ← HSA-DPO loss and trainer
 │
+├── fg_pipeline/                                  ← new extension layer for the project pipeline
+│   ├── confidence/                               ← stage 3 bootstrap + confidence utilities
+│   ├── rewrite/                                  ← stage 4 rewrite scaffold
+│   ├── verification/                             ← stage 5 clean-pair builder
+│   ├── adaptive_dpo/                             ← stage 6 trainer hooks
+│   ├── schemas.py                                ← shared JSONL record shapes
+│   └── io_utils.py                               ← JSONL helpers
+│
 ├── inference/
 │   ├── inference_example.py
 │   └── inference_example.ipynb
@@ -42,12 +50,20 @@ It does not re-explain the research pipeline — see [README.md](README.md) for 
 │   └── hsa_dpo_llava/            ← trained LoRA checkpoint written here
 │
 ├── scripts/
-│   └── vastai/
-│       └── bootstrap.sh          ← remote setup helper for Vast AI
+│   ├── vastai/
+│   │   └── bootstrap.sh          ← remote setup helper for Vast AI
+│   ├── run_stage3_confidence.sh  ← stage 3 bootstrap
+│   ├── run_stage4_rewrite.sh     ← stage 4 scaffold
+│   ├── run_stage5_verify.sh      ← stage 5 scaffold
+│   ├── run_stage6_train.sh       ← stage 6 wrapper around hsa_dpo_train.sh
+│   └── run_full_pipeline.sh      ← sequential wrapper for stages 3–6
 │
 └── vg/
     └── images/                   ← Visual Genome images (only needed for detection stage)
 ```
+
+`VLFeedback/` is intentionally not part of the default tree above.
+It is optional external raw data and is not used by the current code path.
 
 ---
 
@@ -112,6 +128,7 @@ IMAGE_FOLDER=./hsa_dpo/data/images
 
 - These point to the released dataset included in this repo.
 - Do **not** change `IMAGE_FOLDER` to `image` — that folder does not exist.
+- Detection data is separate and still points to `vg/images/` via `hsa_dpo_detection.jsonl`.
 
 ### Step 4 — Set the base model path
 
@@ -197,6 +214,36 @@ The launcher will:
 2. Validate that all required paths exist
 3. Check that `deepspeed` is on PATH
 4. Launch DeepSpeed across `NUM_GPUS` with `train_dpo.py`
+
+### Reusing The Original Trainer For The New Pipeline
+
+The new pipeline is designed to keep using the original training stack.
+
+- baseline HSA-DPO training:
+  - `bash hsa_dpo_train.sh`
+- stage-6 project training:
+  - `bash scripts/run_stage6_train.sh`
+
+`run_stage6_train.sh` only overrides `DATA_PATH`, `IMAGE_FOLDER`, and `OUTPUT_DIR`.
+It still delegates to the original [hsa_dpo_train.sh](hsa_dpo_train.sh).
+
+### Stage Order For The Project Scaffold
+
+When you begin running the extension pipeline, use:
+
+```bash
+bash scripts/run_stage3_confidence.sh
+bash scripts/run_stage4_rewrite.sh
+bash scripts/run_stage5_verify.sh
+bash scripts/run_stage6_train.sh
+```
+
+Current implementation state:
+
+- stage 3 is usable as a bootstrap over `hsa_dpo_detection.jsonl`
+- stage 4 is still a placeholder rewrite step
+- stage 5 emits HSA-DPO-compatible preference records
+- stage 6 is ready to reuse the original trainer once stage 4 produces real rewrites
 
 ---
 

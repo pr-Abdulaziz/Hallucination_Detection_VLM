@@ -36,6 +36,17 @@
 
 This repository contains the official implementation of the paper "Detecting and Mitigating Hallucination in Large Vision Language Models via Fine-Grained AI Feedback". For supplementary experiments and details, please refer to the [Appendix](asset/HSA_DPO_Appendix.pdf).
 
+This working copy now has two layers:
+
+- the original `hsa_dpo/` package and training flow from the released paper
+- a lightweight `fg_pipeline/` extension layer for the new confidence-aware pipeline
+
+Design rule for this project:
+
+- keep the original HSA-DPO code and dataset paths intact
+- reuse `hsa_dpo_train.sh` and `hsa_dpo/models/llava-v1_5/train_dpo.py` whenever possible
+- add new logic around the old pipeline instead of replacing it
+
 ![model](asset/overview.png)
 
 ## Table of Contents
@@ -55,12 +66,12 @@ git clone https://github.com/Mr-Loevan/HSA-DPO.git
 cd HSA-DPO
 
 # Install HSA-DPO and dependencies
-conda create -n hsa_dpo python==3.9
+conda create -n hsa_dpo python==3.10
 conda activate hsa_dpo
 pip install -e .
 
-# (Optional) Install flash-attention for faster training
-pip install -e ".[flash-attn]"
+# Linux GPU training stack
+pip install -e ".[linux-train]"
 ```
 
 ## Vast AI
@@ -81,34 +92,46 @@ huggingface-cli download --repo-type dataset WenyiXiao/HSA-DPO --local-dir ./dat
 
 **For hallucination detection:** 
 - Training data: `hsa_dpo_detection.jsonl`
-- Images: From [Visual Genome](https://homes.cs.washington.edu/~ranjay/visualgenome/api.html)
+- Images: from [Visual Genome](https://homes.cs.washington.edu/~ranjay/visualgenome/api.html), stored under `./vg/images`
 
 **For hallucination mitigation (HSA-DPO training):** 
 - Preference data: `hsa_dpo_preference_llava1dot5.jsonl` 
-- Images: `hsa_dpo_imgs.tar.gz`
+- Images: extracted into `./hsa_dpo/data/images`
+
+**Optional external data (not used by default):**
+- `VLFeedback/` is not part of the default repo flow
+- keep it outside the main pipeline unless you explicitly decide to use it as auxiliary preference data
 
 ### Prepare Data for Training
 
 ```bash
 # 1. Create data directories
 mkdir -p hsa_dpo/data
-mkdir -p hsa_dpo/data/image
+mkdir -p hsa_dpo/data/images
+mkdir -p vg/images
 
 # 2. Copy preference dataset
 cp datasets/hsa_dpo_preference_llava1dot5.jsonl hsa_dpo/data/
 
 # 3. Extract images
-tar -xzf datasets/hsa_dpo_imgs.tar.gz -C hsa_dpo/data/image/
+tar -xzf datasets/hsa_dpo_imgs.tar.gz -C hsa_dpo/data/images/
 
 # 4. Verify data structure
 ls hsa_dpo/data/
-# Should show: hsa_dpo_preference_llava1dot5.jsonl
+# Should show: hsa_dpo_preference_llava1dot5.jsonl and images/
 
-ls hsa_dpo/data/image/ | head -5
+ls hsa_dpo/data/images/ | head -5
 # Should show: 0.jpg, 1.jpg, 2.jpg, 3.jpg, 4.jpg ...
 ```
 
 **Note:** The images are named with sequential IDs (0.jpg, 1.jpg, ...) corresponding to the `id` field in the JSONL file.
+
+**Important:** the repo uses two different image stores:
+
+- `vg/images/` for the detection dataset
+- `hsa_dpo/data/images/` for preference training
+
+Do not merge them.
 
 ## Training
 
@@ -139,13 +162,39 @@ vim hsa_dpo_train.sh
 
 # Update these paths according to your setup:
 # DATA_PATH="./hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl"
-# IMAGE_FOLDER="./hsa_dpo/data/image"
+# IMAGE_FOLDER="./hsa_dpo/data/images"
 # MODEL_PATH="path/to/llava-v1.5-13b"
 # OUTPUT_DIR="./output/hsa_dpo_llava"
 
 # Run training
 bash hsa_dpo_train.sh
 ```
+
+## Project Extension Pipeline
+
+The new project work lives under `fg_pipeline/` and reuses the original HSA-DPO code.
+
+Current stage launchers:
+
+```bash
+bash scripts/run_stage3_confidence.sh
+bash scripts/run_stage4_rewrite.sh
+bash scripts/run_stage5_verify.sh
+bash scripts/run_stage6_train.sh
+```
+
+What these stages do today:
+
+- Stage 3 bootstraps `D_det` from `hsa_dpo/data/hsa_dpo_detection.jsonl`
+- Stage 4 is a scaffold rewrite stage and currently uses placeholder passthrough logic
+- Stage 5 converts filtered rewrite outputs into an HSA-DPO-compatible preference format
+- Stage 6 reuses the original `hsa_dpo_train.sh` with `DATA_PATH=output/fghd/D_pref_clean.jsonl`
+
+Current status:
+
+- the extension layer is ready as a project scaffold
+- baseline HSA-DPO training works through the original code path
+- a real rewrite model still needs to be added before the full new pipeline can produce useful clean preference pairs
 
 ### Key Parameters
 
@@ -182,7 +231,7 @@ We provide a simple inference script to test the model:
 # Run inference (LLaVA should already be installed from Installation step)
 python inference/inference_example.py \
     --model-base path/to/llava-v1.5-13b \
-    --lora-path ./checkpoints/HSA-DPO_llava_v1.5-13B-lora \
+    --lora-path ./output/hsa_dpo_llava \
     --image path/to/image.jpg \
     --prompt "Describe this image in detail."
 ```
