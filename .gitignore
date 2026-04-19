@@ -79,4 +79,18 @@ ENV/
 *_backup*
 *.bak
 
-/.claude/
+# Local user / agent tool state
+.claude/
+.direnv/
+.python-version
+.jupyter/
+
+# Local scratch / personal notes
+scratch/
+tmp/
+/local/
+*.local
+*.local.json
+*.local.md
+NOTES.local.*
+TODO.local.*
