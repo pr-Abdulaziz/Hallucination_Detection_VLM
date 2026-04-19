@@ -37,16 +37,30 @@ class BootstrapScorer:
         }
 
 
-_SCORER_REGISTRY: dict[str, type] = {"bootstrap": BootstrapScorer}
+_SCORER_REGISTRY: dict[str, str] = {
+    "bootstrap": "fg_pipeline.confidence.scoring:BootstrapScorer",
+    "log_prob": "fg_pipeline.confidence.scorers_logprob:LogProbScorer",
+}
 
 
-def get_scorer(name: str) -> ConfidenceScorer:
+def _resolve_scorer_class(name: str) -> type:
     try:
-        cls = _SCORER_REGISTRY[name]
+        target = _SCORER_REGISTRY[name]
     except KeyError as exc:
         available = ", ".join(sorted(_SCORER_REGISTRY))
         raise ValueError(f"unknown scorer {name!r}; available: {available}") from exc
-    return cls()
+    module_path, _, attr = target.partition(":")
+    import importlib
+
+    module = importlib.import_module(module_path)
+    return getattr(module, attr)
+
+
+def get_scorer(name: str, **kwargs: Any) -> ConfidenceScorer:
+    """Return a scorer instance. Heavy scorers defer their deps until ``score``."""
+
+    cls = _resolve_scorer_class(name)
+    return cls(**kwargs)
 
 
 def average_confidence(signals: Iterable[SentenceSignal]) -> float:

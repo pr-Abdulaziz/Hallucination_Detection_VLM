@@ -11,16 +11,23 @@ from fg_pipeline.paths import DEFAULT_DETECTION_INPUT
 from fg_pipeline.schemas import DetectionRecord, SentenceSignal
 
 _PROMPT_PREFIX = "<image>\nDescription to Assess:\n"
+# D_faif does not preserve the Stage-1 instruction that produced yhat.
+# LLaVA-v1.5's standard VG-captioning instruction is used as a stable default.
+_CANONICAL_STAGE1_INSTRUCTION = "Describe this image in detail."
 
 
-def _extract_prompt(conversations: list[dict]) -> str:
+def _extract_candidate_response(conversations: list[dict]) -> str:
+    """yhat — the Stage-1 LVLM description being assessed."""
+
     if not conversations:
         return ""
-    prompt = conversations[0].get("value", "")
-    return prompt.replace(_PROMPT_PREFIX, "", 1)
+    value = conversations[0].get("value", "")
+    return value.replace(_PROMPT_PREFIX, "", 1)
 
 
-def _extract_response(conversations: list[dict]) -> str:
+def _extract_teacher_annotation(conversations: list[dict]) -> str:
+    """Raw GPT-4/GPT-4V structured annotation (Tags/Scores or ``NO HALLUCINATION``)."""
+
     if len(conversations) < 2:
         return ""
     return conversations[1].get("value", "")
@@ -55,24 +62,26 @@ def _build_signals(
 
 def build_detection_record(row: dict, scorer: ConfidenceScorer) -> DetectionRecord:
     conversations = row.get("conversations", [])
-    raw_detection = _extract_response(conversations)
-    prompt = _extract_prompt(conversations)
+    candidate_response = _extract_candidate_response(conversations)
+    raw_detection = _extract_teacher_annotation(conversations)
     context = {
         "sample_id": row.get("id", ""),
         "image": row.get("image"),
-        "prompt": prompt,
+        "prompt": _CANONICAL_STAGE1_INSTRUCTION,
+        "candidate_response": candidate_response,
     }
     return DetectionRecord(
         sample_id=row.get("id", ""),
         image=row.get("image"),
-        prompt=prompt,
-        candidate_response=raw_detection,
+        prompt=_CANONICAL_STAGE1_INSTRUCTION,
+        candidate_response=candidate_response,
         signals=_build_signals(raw_detection, scorer, context),
         raw_detection=raw_detection,
         metadata={
             "source_dataset": "hsa_dpo_detection",
             "source_input_role": "fg_pipeline_detection_mirror",
             "scorer": scorer.name,
+            "stage1_instruction_source": "canonical_describe_prompt",
         },
     )
 
@@ -168,12 +177,50 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--limit", type=int, default=None, help="Optional row limit for smoke tests"
     )
+    # Flags consumed by model-backed scorers (e.g. log_prob). Ignored by bootstrap.
+    parser.add_argument("--model-path", default=None, help="Path to the VLM checkpoint.")
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="Device spec for the scorer (auto / cuda / cuda:0 / cpu).",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="Temperature applied to logits before softmax.",
+    )
+    parser.add_argument(
+        "--image-root",
+        default=None,
+        help="Root directory relative to which record image paths are resolved.",
+    )
     return parser.parse_args()
+
+
+_SCORER_KWARG_WHITELIST = {
+    "bootstrap": set(),
+    "log_prob": {"model_path", "device", "temperature", "image_root"},
+}
+
+
+def _scorer_kwargs(name: str, args: argparse.Namespace) -> dict:
+    allowed = _SCORER_KWARG_WHITELIST.get(name, set())
+    raw = {
+        "model_path": args.model_path,
+        "device": args.device,
+        "temperature": args.temperature,
+        "image_root": args.image_root,
+    }
+    return {k: v for k, v in raw.items() if k in allowed and v is not None}
 
 
 def main() -> int:
     args = parse_args()
-    scorer = get_scorer(args.scorer)
+    kwargs = _scorer_kwargs(args.scorer, args)
+    if args.scorer == "log_prob" and not kwargs.get("model_path"):
+        raise SystemExit("--model-path is required when --scorer log_prob is used")
+    scorer = get_scorer(args.scorer, **kwargs)
     rows = generate_records(read_jsonl(args.input), scorer, limit=args.limit)
     write_jsonl(args.output, rows)
     _print_summary(_summarize(rows), args.output)

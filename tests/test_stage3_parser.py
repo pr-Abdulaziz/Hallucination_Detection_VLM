@@ -76,17 +76,36 @@ class BuildDetectionRecordTests(unittest.TestCase):
         cls.rows = _load_fixture()
         cls.scorer = BootstrapScorer()
 
-    def test_candidate_response_is_gpt_response_not_prompt(self) -> None:
-        """Regression guard for the _extract_prompt vs _extract_response bug."""
+    def test_candidate_response_is_yhat(self) -> None:
+        """candidate_response must hold yhat (the description being assessed)."""
+        for row_id, row in self.rows.items():
+            raw_human = row["conversations"][0]["value"]
+            expected = raw_human.replace("<image>\nDescription to Assess:\n", "", 1)
+            record = build_detection_record(row, self.scorer).to_dict()
+            self.assertEqual(record["candidate_response"], expected, f"row {row_id}")
+            self.assertFalse(record["candidate_response"].startswith("<image>"))
+            self.assertFalse(record["candidate_response"].startswith("Description to Assess:"))
+
+    def test_raw_detection_is_teacher_annotation(self) -> None:
+        """raw_detection must hold the GPT-4 structured annotation."""
         for row_id, row in self.rows.items():
             expected = row["conversations"][1]["value"]
             record = build_detection_record(row, self.scorer).to_dict()
-            self.assertEqual(record["candidate_response"], expected, f"row {row_id}")
+            self.assertEqual(record["raw_detection"], expected, f"row {row_id}")
 
-    def test_prompt_is_stripped(self) -> None:
+    def test_candidate_response_and_raw_detection_differ_for_hallucinated_rows(self) -> None:
+        for row_id in (8500, 8501, 8517):
+            record = build_detection_record(self.rows[row_id], self.scorer).to_dict()
+            self.assertNotEqual(
+                record["candidate_response"], record["raw_detection"], f"row {row_id}"
+            )
+
+    def test_prompt_is_canonical_instruction(self) -> None:
         record = build_detection_record(self.rows[0], self.scorer).to_dict()
-        self.assertFalse(record["prompt"].startswith("<image>"))
-        self.assertFalse(record["prompt"].startswith("Description to Assess:"))
+        self.assertEqual(record["prompt"], "Describe this image in detail.")
+        self.assertEqual(
+            record["metadata"]["stage1_instruction_source"], "canonical_describe_prompt"
+        )
 
     def test_no_hallucination_has_no_signals(self) -> None:
         record = build_detection_record(self.rows[0], self.scorer).to_dict()
