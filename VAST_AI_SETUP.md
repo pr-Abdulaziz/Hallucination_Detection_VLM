@@ -97,6 +97,15 @@ After the instance starts:
 3. update `HostName` and `Port` in `C:\Users\ahrhq\.ssh\config`
 4. connect with `ssh vastai` or VS Code Remote SSH
 
+If `ssh vastai` times out, the instance is usually stopped/restarted and the IP or port changed.
+Update `HostName` and `Port` from the currently active Vast instance panel and retry.
+
+If OpenSSH reports `Bad owner or permissions on ...\\.ssh\\config` on Windows, reset ACLs:
+
+```powershell
+icacls "$env:USERPROFILE\\.ssh" /grant:r "$env:USERDOMAIN\\$env:USERNAME:(OI)(CI)F" "NT AUTHORITY\\SYSTEM:(OI)(CI)F" "BUILTIN\\Administrators:(OI)(CI)F" /t /c
+```
+
 ## 4. Step 3: Clone The Repo On The Remote Machine
 
 Run this on the Vast instance:
@@ -180,6 +189,12 @@ Run this on the Vast instance:
 ```bash
 source .venv/bin/activate
 bash hsa_dpo_train.sh
+```
+
+For a smaller first validation run, use:
+
+```bash
+bash scripts/vastai/run_pilot_train.sh
 ```
 
 If you disconnect often, run inside `tmux`.

@@ -12,16 +12,28 @@ from types import MethodType
 from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 from transformers.models.bloom.modeling_bloom import BaseModelOutputWithPastAndCrossAttentions, BloomForCausalLM, BloomModel, CausalLMOutputWithCrossAttentions, CrossEntropyLoss
-from transformers.models.bloom.modeling_bloom import _expand_mask as _expand_mask_bloom
-from transformers.models.bloom.modeling_bloom import _make_causal_mask as _make_causal_mask_bloom
 from transformers.models.bloom.modeling_bloom import logging
+# _expand_mask / _make_causal_mask were removed from transformers ≥4.37 (BLOOM/OPT).
+# LLaVA-v1.5 uses a LLaMA backbone, so the MPT-Prefix-LM path below is never executed.
+# These imports are kept as None stubs so the module still loads; calling any MPT
+# prefix-LM code with modern transformers would raise at use-site, which is fine.
+try:
+    from transformers.models.bloom.modeling_bloom import _expand_mask as _expand_mask_bloom
+    from transformers.models.bloom.modeling_bloom import _make_causal_mask as _make_causal_mask_bloom
+except ImportError:
+    _expand_mask_bloom = None
+    _make_causal_mask_bloom = None
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoForCausalLM
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
 from transformers.models.gptj.modeling_gptj import GPTJForCausalLM
 from transformers.models.opt.modeling_opt import OPTForCausalLM
-from transformers.models.opt.modeling_opt import _expand_mask as _expand_mask_opt
-from transformers.models.opt.modeling_opt import _make_causal_mask as _make_causal_mask_opt
+try:
+    from transformers.models.opt.modeling_opt import _expand_mask as _expand_mask_opt
+    from transformers.models.opt.modeling_opt import _make_causal_mask as _make_causal_mask_opt
+except ImportError:
+    _expand_mask_opt = None
+    _make_causal_mask_opt = None
 logger = logging.get_logger(__name__)
 _SUPPORTED_GPT_MODELS = (GPT2LMHeadModel, GPTJForCausalLM, GPTNeoForCausalLM, GPTNeoXForCausalLM)
 CAUSAL_GPT_TYPES = Union[GPT2LMHeadModel, GPTJForCausalLM, GPTNeoForCausalLM, GPTNeoXForCausalLM]
