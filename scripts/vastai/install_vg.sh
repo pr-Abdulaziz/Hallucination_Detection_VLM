@@ -13,12 +13,12 @@ echo "Starting Visual Genome dataset download..."
 # Download parts if they don't exist
 if [ ! -f "images.zip" ]; then
   echo "Downloading images.zip (~9GB)..."
-  wget -c https://downloads.cs.stanford.edu/nlp/data/visualgenome/images.zip
+  wget -c https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip
 fi
 
 if [ ! -f "images2.zip" ]; then
   echo "Downloading images2.zip (~5GB)..."
-  wget -c https://downloads.cs.stanford.edu/nlp/data/visualgenome/images2.zip
+  wget -c https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip
 fi
 
 echo "Extracting images.zip..."

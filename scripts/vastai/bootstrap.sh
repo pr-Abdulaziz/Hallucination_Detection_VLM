@@ -26,7 +26,7 @@ source .venv/bin/activate
 
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e ".[linux-train]"
-python -m pip install -U huggingface_hub modelscope
+python -m pip install -U "huggingface_hub>=0.23.2,<1.0" modelscope
 
 echo
 echo "Vast AI bootstrap completed."

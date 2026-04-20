@@ -94,3 +94,12 @@ tmp/
 *.local.md
 NOTES.local.*
 TODO.local.*
+
+# Vast AI local-only state
+/.vastai/
+/VAST_AI_SETUP.local.md
+/vast_sync.tar
+/scripts/vastai/*.local.sh
+/scripts/vastai/*.local.env
+/scripts/vastai/*.local.py
+/scripts/vastai/local/

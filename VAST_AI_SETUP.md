@@ -33,6 +33,16 @@ These **do** belong in the repo:
 - remote bootstrap script: `scripts/vastai/bootstrap.sh`
 - training launcher: `hsa_dpo_train.sh`
 
+These should stay **local-only** and are ignored by Git:
+
+- `VAST_AI_SETUP.local.md`
+- `.vastai/`
+- `scripts/vastai/*.local.sh`
+- `scripts/vastai/*.local.env`
+- `scripts/vastai/*.local.py`
+- `scripts/vastai/local/`
+- `vast_sync.tar`
+
 ### Remote Vast instance
 
 These happen after you SSH into the rented GPU:
@@ -224,12 +234,14 @@ If you want to make the Vast AI workflow cleaner, the next repo changes should b
 2. create SSH key
 3. update `C:\Users\ahrhq\.ssh\config`
 4. connect to `vastai`
+5. keep any per-instance notes or one-off commands in `VAST_AI_SETUP.local.md`, not in tracked docs
 
 ### In this repo
 
 1. keep `hsa_dpo_train.sh`
 2. use `scripts/vastai/bootstrap.sh`
 3. use this document as the project-specific checklist
+4. put machine-specific overrides in ignored `scripts/vastai/*.local.*` files rather than editing tracked setup docs for each instance
 
 ### On the Vast instance
 
