@@ -20,6 +20,8 @@ fi
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EPOCH="${EPOCH:-2}"
 LEARNING_RATE="${LEARNING_RATE:-2e-6}"
+USE_CHOSEN_SCORE="${USE_CHOSEN_SCORE:-False}"
+USE_REJECTED_SCORE="${USE_REJECTED_SCORE:-True}"
 
 # Project-local defaults. Override with env vars if needed.
 DATA_PATH="${DATA_PATH:-${REPO_ROOT}/hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl}"
@@ -68,6 +70,8 @@ echo "Image folder: ${IMAGE_FOLDER}"
 echo "Model path: ${MODEL_PATH}"
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Using ${NUM_GPUS} GPUs"
+echo "Chosen score weighting: ${USE_CHOSEN_SCORE}"
+echo "Rejected score weighting: ${USE_REJECTED_SCORE}"
 
 mkdir -p "${OUTPUT_DIR}"
 
@@ -109,7 +113,7 @@ deepspeed --num_gpus="${NUM_GPUS}" "${ENTRY}" \
     --report_to tensorboard \
     --deepspeed "${DS_CONFIG}" \
     --beta 0.1 \
-    --use_chosen_score False \
-    --use_rejected_score True
+    --use_chosen_score "${USE_CHOSEN_SCORE}" \
+    --use_rejected_score "${USE_REJECTED_SCORE}"
 
 echo "Training completed!"

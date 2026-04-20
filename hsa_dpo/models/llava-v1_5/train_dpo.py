@@ -19,6 +19,8 @@ import transformers
 from transformers import TrainerCallback
 from transformers import HfArgumentParser, TrainingArguments
 
+from fg_pipeline.adaptive_dpo import normalize_preference_item, resolve_image_path
+from fg_pipeline.adaptive_dpo.trainer_adaptive import AdaptiveLlavaDPOTrainer
 from llava.model import *
 from llava.constants import IGNORE_INDEX
 from llava import conversation as conversation_lib
@@ -32,8 +34,6 @@ from peft import (
     prepare_model_for_kbit_training,
     set_peft_model_state_dict,
 )
-
-from hsa_dpo.trainer.llava_dpo_trainer import LlavaDPOTrainer
 
 local_rank = None
         
@@ -56,7 +56,10 @@ class DataArguments:
     desc_data_path: str = field(default=None, metadata={"help": "Path to the HSA-DPO training data (JSONL format)."})
     lazy_preprocess: bool = False
     is_multimodal: bool = False
-    image_folder: Optional[str] = field(default="")  # Not used in HSA-DPO but kept for compatibility
+    image_folder: Optional[str] = field(
+        default="",
+        metadata={"help": "Root directory for relative image paths; legacy id.jpg lookup falls back here."},
+    )
     image_aspect_ratio: str = 'square'
     
     
@@ -220,23 +223,20 @@ class LazySupervisedDataset(Dataset):
         """Process HSA-DPO preference data"""
         processed_data = []
         for item in hsa_dpo_data:
-            # Extract fields from HSA-DPO format
-            image_id = item.get("id", "")  # e.g., "svit-conversation-1389"
-            question = item.get("question", "")
-            chosen = item.get("chosen", "")
-            rejected = item.get("rejected", "")
-            
-            # Get scores - default to 1.0 if not present
-            chosen_score = item.get("chosen_score", 1.0)
-            rejected_score = item.get("rejected_score", 1.0)
-            
+            sample = normalize_preference_item(item)
+            image_id = sample.get("id", "")
+            question = sample.get("question", "")
+            chosen = sample.get("chosen", "")
+            rejected = sample.get("rejected", "")
+
             # Add image token to question
             question = "<image>\n" + question
-            
+
             # Create conversation format
-            processed_data.append({
+            processed = {
                 "id": image_id,
-                "image_id": image_id,  # Store for image path lookup
+                "image_id": image_id,
+                "image": sample.get("image"),
                 "chosen_conversations": [
                     {"from": "human", "value": question},
                     {"from": "gpt", "value": chosen},
@@ -245,9 +245,16 @@ class LazySupervisedDataset(Dataset):
                     {"from": "human", "value": question},
                     {"from": "gpt", "value": rejected},
                 ],
-                "chosen_score": chosen_score,
-                "rejected_score": rejected_score
-            })
+                "chosen_score": sample.get("chosen_score", 1.0),
+                "rejected_score": sample.get("rejected_score", 1.0),
+            }
+            if "pair_confidence" in sample:
+                processed["pair_confidence"] = sample["pair_confidence"]
+            if "severity_weight" in sample:
+                processed["severity_weight"] = sample["severity_weight"]
+            if "adaptive_weight" in sample:
+                processed["adaptive_weight"] = sample["adaptive_weight"]
+            processed_data.append(processed)
         return processed_data
     
     # Removed unused processing methods for other data formats
@@ -259,34 +266,51 @@ class LazySupervisedDataset(Dataset):
     def lengths(self):
         length_list = []
         for sample in self.list_data_dict:
-            img_tokens = 128 if 'image' in sample else 0
-            length_list.append(sum(len(conv['value'].split()) for conv in sample['conversations']) + img_tokens)
+            img_tokens = 128 if sample.get("image") else 0
+            chosen_len = sum(
+                len(conv["value"].split())
+                for conv in sample.get("chosen_conversations", [])
+            )
+            reject_len = sum(
+                len(conv["value"].split())
+                for conv in sample.get("reject_conversations", [])
+            )
+            length_list.append(max(chosen_len, reject_len) + img_tokens)
         return length_list
 
     @property
     def modality_lengths(self):
         length_list = []
         for sample in self.list_data_dict:
-            cur_len = sum(len(conv['value'].split()) for conv in sample['conversations'])
-            cur_len = cur_len if 'images' in sample else -cur_len
+            chosen_len = sum(
+                len(conv["value"].split())
+                for conv in sample.get("chosen_conversations", [])
+            )
+            reject_len = sum(
+                len(conv["value"].split())
+                for conv in sample.get("reject_conversations", [])
+            )
+            cur_len = max(chosen_len, reject_len)
+            cur_len = cur_len if sample.get("image") else -cur_len
             length_list.append(cur_len)
         return length_list
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        sources = self.list_data_dict[i]
+        sample = self.list_data_dict[i]
+        sources = sample
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
-        
-        # Get image based on id  
-        image_id = self.list_data_dict[i]['image_id']
-        # Construct image path - adjust based on your actual image naming convention
-        image_file = os.path.join(self.data_args.image_folder, f"{image_id}.jpg")
-        
+
+        image_file = resolve_image_path(
+            sample.get("image"),
+            self.data_args.image_folder or ".",
+            fallback_id=sample.get("image_id"),
+        )
         processor = self.data_args.image_processor
-        
+
         # Load and process the image
-        if os.path.exists(image_file):
+        if image_file.exists():
             image = Image.open(image_file).convert('RGB')
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
@@ -309,8 +333,8 @@ class LazySupervisedDataset(Dataset):
             # If image not found, create a dummy image
             crop_size = processor.crop_size if hasattr(processor, 'crop_size') else {'height': 336, 'width': 336}
             image = torch.zeros(3, crop_size['height'], crop_size['width'])
-            print(f"Warning: Image not found for {image_id} at {image_file}")
-        
+            print(f"Warning: Image not found for {sample.get('id', '')} at {image_file}")
+
         # Process conversations with multimodal preprocessing
         chosen_sources = preprocess_multimodal(
             copy.deepcopy([e["chosen_conversations"] for e in sources]),
@@ -335,9 +359,15 @@ class LazySupervisedDataset(Dataset):
                 chosen_labels=chosen_data_dict["labels"][0],
                 reject_input_ids=reject_data_dict["input_ids"][0],
                 reject_labels=reject_data_dict["labels"][0],
-                chosen_scores=self.list_data_dict[i]["chosen_score"],
-                rejected_scores=self.list_data_dict[i]["rejected_score"]
+                chosen_scores=sample["chosen_score"],
+                rejected_scores=sample["rejected_score"],
             )
+            if "pair_confidence" in sample:
+                data_dict["pair_confidences"] = sample["pair_confidence"]
+            if "severity_weight" in sample:
+                data_dict["severity_weights"] = sample["severity_weight"]
+            if "adaptive_weight" in sample:
+                data_dict["adaptive_weights"] = sample["adaptive_weight"]
 
         # Include the image
         data_dict['images'] = image
@@ -382,6 +412,21 @@ class DataCollatorForSupervisedDataset(object):
             chosen_scores=torch.tensor(chosen_scores),  # 这里添加了chosen_score
             rejected_scores=torch.tensor(rejected_scores),  # 这里添加了rejected_score
         )
+        if all("pair_confidences" in instance for instance in instances):
+            batch["pair_confidences"] = torch.tensor(
+                [instance["pair_confidences"] for instance in instances],
+                dtype=torch.float32,
+            )
+        if all("severity_weights" in instance for instance in instances):
+            batch["severity_weights"] = torch.tensor(
+                [instance["severity_weights"] for instance in instances],
+                dtype=torch.float32,
+            )
+        if all("adaptive_weights" in instance for instance in instances):
+            batch["adaptive_weights"] = torch.tensor(
+                [instance["adaptive_weights"] for instance in instances],
+                dtype=torch.float32,
+            )
 
         if 'images' in instances[0]:
             images = [instance['images'] for instance in instances]
@@ -755,7 +800,7 @@ def main():
 
     print("Train:", training_args)
     # initialize the DPO trainer
-    dpo_trainer = LlavaDPOTrainer(
+    dpo_trainer = AdaptiveLlavaDPOTrainer(
         model=llava_policy_model,
         ref_model=llava_ref_model,
         args=training_args,

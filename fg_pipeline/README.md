@@ -24,3 +24,7 @@ Compatibility target for `output/fghd/D_pref_clean.jsonl`:
 - `rejected_score`
 
 Those fields match what `hsa_dpo/models/llava-v1_5/train_dpo.py` already expects.
+
+Stage 6 adaptive extensions:
+- prefer the carried `image` field over reconstructing paths from `id`
+- consume `pair_confidence`, `severity_weight`, and `adaptive_weight` when present
