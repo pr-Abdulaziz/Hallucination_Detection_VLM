@@ -107,5 +107,25 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
             _inputs['images'] = images
         return _inputs
 
-AutoConfig.register("llava", LlavaConfig)
-AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)
+
+def _register_llava_llama():
+    try:
+        AutoConfig.register("llava", LlavaConfig, exist_ok=True)
+    except TypeError:
+        try:
+            AutoConfig.register("llava", LlavaConfig)
+        except ValueError as exc:
+            if "already used" not in str(exc):
+                raise
+
+    try:
+        AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM, exist_ok=True)
+    except TypeError:
+        try:
+            AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)
+        except ValueError as exc:
+            if "already used" not in str(exc):
+                raise
+
+
+_register_llava_llama()

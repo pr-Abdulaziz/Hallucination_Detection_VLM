@@ -2,16 +2,29 @@ import os
 import torch
 
 from torch.utils.data import Sampler
+from enum import Enum
 
 from transformers import Trainer
-from transformers.trainer import (
-    is_sagemaker_mp_enabled,
-    get_parameter_names,
-    has_length,
-    ALL_LAYERNORM_LAYERS,
-    ShardedDDPOption,
-    logger,
-)
+try:
+    from transformers.trainer import (
+        is_sagemaker_mp_enabled,
+        get_parameter_names,
+        has_length,
+        ALL_LAYERNORM_LAYERS,
+        ShardedDDPOption,
+        logger,
+    )
+except ImportError:
+    from transformers.trainer import (
+        is_sagemaker_mp_enabled,
+        get_parameter_names,
+        has_length,
+        ALL_LAYERNORM_LAYERS,
+        logger,
+    )
+
+    class ShardedDDPOption(str, Enum):
+        SIMPLE = "simple"
 from typing import List, Optional
 
 
@@ -154,9 +167,11 @@ class LLaVATrainer(Trainer):
         We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
         Trainer's init through `optimizers`, or subclass and override this method in a subclass.
         """
+        sharded_ddp = getattr(self, "sharded_ddp", None)
+
         if is_sagemaker_mp_enabled():
             return super().create_optimizer()
-        if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+        if sharded_ddp == ShardedDDPOption.SIMPLE:
             return super().create_optimizer()
 
         opt_model = self.model
@@ -212,7 +227,7 @@ class LLaVATrainer(Trainer):
 
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
-            if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+            if sharded_ddp == ShardedDDPOption.SIMPLE:
                 self.optimizer = OSS(
                     params=optimizer_grouped_parameters,
                     optim=optimizer_cls,
