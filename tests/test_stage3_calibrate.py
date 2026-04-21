@@ -1,9 +1,14 @@
-"""Tests for fg_pipeline.confidence.run_calibrate — distribution + τ suggestions."""
+"""Tests for fg_pipeline.confidence.run_calibrate."""
 
 from __future__ import annotations
 
 import unittest
 
+from fg_pipeline.confidence.calibration import (
+    apply_temperature_to_records,
+    build_group_threshold_policy,
+    fit_temperature,
+)
 from fg_pipeline.confidence.run_calibrate import calibrate, format_report
 
 
@@ -18,6 +23,26 @@ def _signal(conf: float, h_type: str = "object", severity: int = 3, **meta) -> d
 
 def _record(signals: list[dict]) -> dict:
     return {"signals": signals}
+
+
+def _triplet_signal(
+    conf: float,
+    *,
+    severity_label: str,
+    companion_log_probs: dict[str, float],
+    h_type: str = "object",
+    severity: int = 3,
+) -> dict:
+    return {
+        "hallucination_type": h_type,
+        "severity": severity,
+        "confidence": conf,
+        "metadata": {
+            "is_placeholder": False,
+            "severity_label": severity_label,
+            "companion_log_probs": companion_log_probs,
+        },
+    }
 
 
 class CalibrateTests(unittest.TestCase):
@@ -99,6 +124,53 @@ class CalibrateTests(unittest.TestCase):
         self.assertGreaterEqual(tau_vals[0], 0.01)
         self.assertLessEqual(tau_vals[-1], 1.0)
 
+    def test_temperature_scaling_is_applied_when_triplets_exist(self) -> None:
+        records = [
+            _record(
+                [
+                    _triplet_signal(
+                        0.2,
+                        severity_label="Major",
+                        companion_log_probs={
+                            "Minor": -2.5,
+                            "Moderate": -1.5,
+                            "Major": -0.1,
+                        },
+                    ),
+                    _triplet_signal(
+                        0.2,
+                        severity_label="Minor",
+                        companion_log_probs={
+                            "Minor": -0.2,
+                            "Moderate": -1.4,
+                            "Major": -2.0,
+                        },
+                        h_type="attribute",
+                        severity=1,
+                    ),
+                ]
+            )
+        ]
+        report = calibrate(records)
+        self.assertEqual(report["temperature_scaling"]["status"], "applied")
+        self.assertGreater(report["temperature_scaling"]["num_examples"], 0)
+
+    def test_group_threshold_policy_is_emitted(self) -> None:
+        records = [
+            _record(
+                [
+                    _signal(0.2, h_type="object", severity=3),
+                    _signal(0.4, h_type="object", severity=3),
+                    _signal(0.8, h_type="attribute", severity=1),
+                ]
+            )
+        ]
+        report = calibrate(records, group_quantile=0.5, min_group_count=1, shrinkage=1.0)
+        policy = report["group_threshold_policy"]
+        self.assertIn("global_threshold", policy)
+        self.assertIn("object|3", policy["by_group"])
+        self.assertIn("attribute|1", policy["by_group"])
+
 
 class FormatReportTests(unittest.TestCase):
     def test_all_placeholder_prints_warning(self) -> None:
@@ -124,6 +196,58 @@ class FormatReportTests(unittest.TestCase):
         self.assertIn("Deciles", text)
         self.assertIn("Per hallucination type", text)
         self.assertIn("Per severity", text)
+
+
+class CalibrationHelpersTests(unittest.TestCase):
+    def test_fit_temperature_returns_scalar(self) -> None:
+        fit = fit_temperature(
+            [
+                ([-2.0, -1.0, -0.2], 2),
+                ([-0.1, -1.2, -2.4], 0),
+                ([-1.5, -0.3, -2.0], 1),
+            ]
+        )
+        self.assertIsNotNone(fit)
+        self.assertGreater(fit.temperature, 0.0)
+
+    def test_apply_temperature_to_records_updates_signal_confidence(self) -> None:
+        records = [
+            _record(
+                [
+                    _triplet_signal(
+                        0.2,
+                        severity_label="Major",
+                        companion_log_probs={
+                            "Minor": -2.0,
+                            "Moderate": -1.0,
+                            "Major": -0.1,
+                        },
+                    )
+                ]
+            )
+        ]
+        updated = apply_temperature_to_records(records, 0.7)
+        meta = updated[0]["signals"][0]["metadata"]
+        self.assertEqual(meta["calibration_status"], "applied")
+        self.assertIn("raw_confidence", meta)
+        self.assertNotEqual(updated[0]["signals"][0]["confidence"], 0.2)
+
+    def test_group_threshold_policy_shrinks_to_global(self) -> None:
+        policy = build_group_threshold_policy(
+            [
+                _signal(0.1, h_type="object", severity=3),
+                _signal(0.2, h_type="object", severity=3),
+                _signal(0.9, h_type="attribute", severity=1),
+            ],
+            group_quantile=0.5,
+            min_group_count=2,
+            shrinkage=10.0,
+        )
+        self.assertLess(policy["by_group"]["attribute|1"]["threshold"], 0.9)
+        self.assertGreaterEqual(
+            policy["by_group"]["attribute|1"]["threshold"],
+            policy["global_threshold"],
+        )
 
 
 if __name__ == "__main__":

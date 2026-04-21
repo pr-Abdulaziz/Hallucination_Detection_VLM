@@ -15,6 +15,8 @@ Everything else is dropped with a reason recorded in the run summary.
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from collections import Counter
 from typing import Iterable
 
@@ -27,6 +29,7 @@ from fg_pipeline.verification.backends import (
     VerificationResult,
     get_backend,
 )
+from tqdm.auto import tqdm
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +45,14 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Keep pairs with pair_confidence strictly above this threshold (τ_c).",
+    )
+    parser.add_argument(
+        "--threshold-report",
+        default=None,
+        help=(
+            "Optional CRC/CV-CRC report JSON from which tau_c will be read as "
+            "selected_tau_c."
+        ),
     )
     parser.add_argument(
         "--backend",
@@ -151,11 +162,18 @@ def generate_records(
     min_pair_confidence: float,
     limit: int | None = None,
 ) -> tuple[list[dict], Counter]:
+    rows_list = list(rows)
+    if limit is not None:
+        rows_list = rows_list[:limit]
+
     kept: list[dict] = []
     reasons: Counter = Counter()
-    for idx, row in enumerate(rows):
-        if limit is not None and idx >= limit:
-            break
+    for row in tqdm(
+        rows_list,
+        desc="Stage 5 verify",
+        unit="row",
+        disable=not sys.stderr.isatty(),
+    ):
         record, reason = evaluate_pair(row, backend, min_pair_confidence)
         if record is None:
             reasons[reason] += 1
@@ -173,13 +191,22 @@ def _print_summary(output_path: str, kept: list[dict], reasons: Counter) -> None
         print(f"  {reason}: {count}")
 
 
+def _resolve_min_pair_confidence(args: argparse.Namespace) -> float:
+    if not args.threshold_report:
+        return args.min_pair_confidence
+    with open(args.threshold_report, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return float(payload["selected_tau_c"])
+
+
 def main() -> int:
     args = parse_args()
     backend = get_backend(args.backend, min_rewrite_chars=args.min_rewrite_chars)
+    min_pair_confidence = _resolve_min_pair_confidence(args)
     kept, reasons = generate_records(
         read_jsonl(args.input),
         backend,
-        min_pair_confidence=args.min_pair_confidence,
+        min_pair_confidence=min_pair_confidence,
         limit=args.limit,
     )
     write_jsonl(args.output, kept)

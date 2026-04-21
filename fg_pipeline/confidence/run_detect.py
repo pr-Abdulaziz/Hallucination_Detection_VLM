@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import Counter
 from typing import Iterable
 
@@ -9,6 +10,7 @@ from fg_pipeline.confidence.scoring import ConfidenceScorer, get_scorer
 from fg_pipeline.io_utils import read_jsonl, write_jsonl
 from fg_pipeline.paths import DEFAULT_DETECTION_INPUT
 from fg_pipeline.schemas import DetectionRecord, SentenceSignal
+from tqdm.auto import tqdm
 
 _PROMPT_PREFIX = "<image>\nDescription to Assess:\n"
 # D_faif does not preserve the Stage-1 instruction that produced yhat.
@@ -89,10 +91,17 @@ def build_detection_record(row: dict, scorer: ConfidenceScorer) -> DetectionReco
 def generate_records(
     rows: Iterable[dict], scorer: ConfidenceScorer, limit: int | None = None
 ) -> list[dict]:
+    rows_list = list(rows)
+    if limit is not None:
+        rows_list = rows_list[:limit]
+
     output: list[dict] = []
-    for idx, row in enumerate(rows):
-        if limit is not None and idx >= limit:
-            break
+    for row in tqdm(
+        rows_list,
+        desc="Stage 3 detect",
+        unit="row",
+        disable=not sys.stderr.isatty(),
+    ):
         output.append(build_detection_record(row, scorer).to_dict())
     return output
 

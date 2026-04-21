@@ -11,7 +11,7 @@ cd "${REPO_ROOT}"
 # Examples:
 #   scripts/run_stage5_verify.sh \
 #     output/fghd/D_rewrite.jsonl output/fghd/D_pref_clean.jsonl heuristic \
-#     --min-pair-confidence 0.5 --limit 1000
+#     --threshold-report output/fghd/D_tau_c_report.json --limit 1000
 
 INPUT="${1:-output/fghd/D_rewrite.jsonl}"
 OUTPUT="${2:-output/fghd/D_pref_clean.jsonl}"

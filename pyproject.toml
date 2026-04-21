@@ -36,6 +36,7 @@ dependencies = [
     "datasets>=2.19,<4",
     "jsonlines>=4,<5",
     "scikit-learn>=1.5,<2",
+    "tqdm>=4.66,<5",
     
     # Training utilities
     "tensorboard",

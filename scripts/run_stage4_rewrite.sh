@@ -16,10 +16,10 @@ cd "${REPO_ROOT}"
 #
 #   # Real Stage 4 rewrite with LLaVA-v1.5 on GPU
 #   scripts/run_stage4_rewrite.sh \
-#     output/fghd/D_det.jsonl output/fghd/D_rewrite.jsonl llava \
+#     output/fghd/D_det_calibrated.jsonl output/fghd/D_rewrite.jsonl llava \
 #     --model-path /models/llava-v1.5-13b \
 #     --image-root /data/vg \
-#     --confidence-threshold 0.5
+#     --threshold-report output/fghd/D_det_calibration.json
 
 INPUT="${1:-output/fghd/D_det.jsonl}"
 OUTPUT="${2:-output/fghd/D_rewrite.jsonl}"

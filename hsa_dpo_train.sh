@@ -31,8 +31,35 @@ VISION_TOWER="${VISION_TOWER:-openai/clip-vit-large-patch14-336}"
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/output/hsa_dpo_llava}"
 DS_CONFIG="${DS_CONFIG:-${REPO_ROOT}/hsa_dpo/models/llava-v1_5/scripts/zero3.json}"
 
-# Number of GPUs to use
-NUM_GPUS="${NUM_GPUS:-2}"
+detect_gpu_count() {
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        nvidia-smi -L 2>/dev/null | grep -c '^GPU ' || true
+        return
+    fi
+    echo 0
+}
+
+AVAILABLE_GPUS="$(detect_gpu_count)"
+REQUESTED_GPUS="${NUM_GPUS:-}"
+if [ -z "${REQUESTED_GPUS}" ]; then
+    if [ "${AVAILABLE_GPUS}" -gt 0 ]; then
+        NUM_GPUS="${AVAILABLE_GPUS}"
+    else
+        NUM_GPUS=2
+    fi
+else
+    NUM_GPUS="${REQUESTED_GPUS}"
+fi
+
+if [ "${AVAILABLE_GPUS}" -le 0 ]; then
+    echo "No GPUs detected via nvidia-smi; cannot launch DeepSpeed training." >&2
+    exit 1
+fi
+
+if [ "${NUM_GPUS}" -gt "${AVAILABLE_GPUS}" ]; then
+    echo "Requested NUM_GPUS=${NUM_GPUS}, but only ${AVAILABLE_GPUS} GPU(s) are available. Using ${AVAILABLE_GPUS} instead." >&2
+    NUM_GPUS="${AVAILABLE_GPUS}"
+fi
 
 # Training script entry point
 ENTRY="${ENTRY:-${REPO_ROOT}/hsa_dpo/models/llava-v1_5/train_dpo.py}"

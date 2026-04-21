@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from typing import Iterable
 
+from fg_pipeline.confidence.calibration import lookup_group_threshold
 from fg_pipeline.io_utils import read_jsonl, write_jsonl
 from fg_pipeline.rewrite.backends import RewriteBackend, get_backend
 from fg_pipeline.schemas import RewriteRecord, SentenceSignal
+from tqdm.auto import tqdm
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,6 +25,14 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Keep signals whose confidence is strictly above this threshold.",
+    )
+    parser.add_argument(
+        "--threshold-report",
+        default=None,
+        help=(
+            "Optional Stage 3 calibration report JSON containing "
+            "group-conditional tau_{type,severity}."
+        ),
     )
     parser.add_argument(
         "--backend",
@@ -77,20 +89,43 @@ def _coerce_signals(items: list[dict]) -> list[SentenceSignal]:
 
 
 def filter_signals(
-    signals: list[SentenceSignal], confidence_threshold: float
+    signals: list[SentenceSignal],
+    confidence_threshold: float,
+    threshold_policy: dict | None = None,
 ) -> list[SentenceSignal]:
     """Keep only signals with c^j strictly greater than the threshold."""
 
-    return [s for s in signals if s.confidence > confidence_threshold]
+    kept: list[SentenceSignal] = []
+    for signal in signals:
+        threshold = confidence_threshold
+        if threshold_policy:
+            threshold = lookup_group_threshold(
+                threshold_policy,
+                signal.hallucination_type,
+                signal.severity,
+                default=confidence_threshold,
+            )
+        if signal.confidence > threshold:
+            kept.append(signal)
+    return kept
+
+
+def _load_threshold_policy(path: str | None) -> dict | None:
+    if not path:
+        return None
+    with open(path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return payload.get("group_threshold_policy")
 
 
 def build_rewrite_record(
     row: dict,
     backend: RewriteBackend,
     confidence_threshold: float,
+    threshold_policy: dict | None = None,
 ) -> RewriteRecord:
     all_signals = _coerce_signals(row.get("signals", []))
-    filtered = filter_signals(all_signals, confidence_threshold)
+    filtered = filter_signals(all_signals, confidence_threshold, threshold_policy)
 
     source_response = row.get("candidate_response", "")
     context = {
@@ -106,6 +141,11 @@ def build_rewrite_record(
         "num_input_signals": len(all_signals),
         "num_filtered_signals": len(filtered),
     }
+    if threshold_policy:
+        base_meta["threshold_policy"] = "group_conditional"
+        base_meta["threshold_policy_global_fallback"] = threshold_policy.get(
+            "global_threshold", confidence_threshold
+        )
 
     if not filtered:
         metadata = {
@@ -138,14 +178,27 @@ def generate_records(
     rows: Iterable[dict],
     backend: RewriteBackend,
     confidence_threshold: float,
+    threshold_policy: dict | None = None,
     limit: int | None = None,
 ) -> list[dict]:
+    rows_list = list(rows)
+    if limit is not None:
+        rows_list = rows_list[:limit]
+
     output: list[dict] = []
-    for idx, row in enumerate(rows):
-        if limit is not None and idx >= limit:
-            break
+    for row in tqdm(
+        rows_list,
+        desc="Stage 4 rewrite",
+        unit="row",
+        disable=not sys.stderr.isatty(),
+    ):
         output.append(
-            build_rewrite_record(row, backend, confidence_threshold).to_dict()
+            build_rewrite_record(
+                row,
+                backend,
+                confidence_threshold,
+                threshold_policy=threshold_policy,
+            ).to_dict()
         )
     return output
 
@@ -197,10 +250,12 @@ def main() -> int:
     if args.backend == "llava" and not kwargs.get("model_path"):
         raise SystemExit("--model-path is required when --backend llava is used")
     backend = get_backend(args.backend, **kwargs)
+    threshold_policy = _load_threshold_policy(args.threshold_report)
     rows = generate_records(
         read_jsonl(args.input),
         backend,
         confidence_threshold=args.confidence_threshold,
+        threshold_policy=threshold_policy,
         limit=args.limit,
     )
     write_jsonl(args.output, rows)

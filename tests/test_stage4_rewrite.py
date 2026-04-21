@@ -78,6 +78,23 @@ class FilterSignalsTests(unittest.TestCase):
         self.assertEqual(kept[0].metadata.get("span"), "alpha")
         self.assertEqual(kept[1].metadata.get("span"), "beta")
 
+    def test_group_threshold_policy_overrides_global_threshold(self) -> None:
+        signals = _coerce_signals(
+            [
+                _sig(0, 0.55, h_type="object", severity=3),
+                _sig(1, 0.55, h_type="attribute", severity=1),
+            ]
+        )
+        policy = {
+            "global_threshold": 0.9,
+            "by_group": {
+                "object|3": {"threshold": 0.6},
+                "attribute|1": {"threshold": 0.5},
+            },
+        }
+        kept = filter_signals(signals, 0.9, threshold_policy=policy)
+        self.assertEqual([s.sentence_index for s in kept], [1])
+
 
 class SkipPolicyTests(unittest.TestCase):
     def test_no_signals_is_skipped(self) -> None:
@@ -200,6 +217,17 @@ class GenerateRecordsTests(unittest.TestCase):
         self.assertEqual(
             out[1]["metadata"]["rewrite_status"], "generated_smoke_only"
         )
+
+    def test_group_threshold_policy_is_traced_in_metadata(self) -> None:
+        rows = [_row("b", candidate="a dog", signals=[_sig(0, 0.9, span="a dog")])]
+        policy = {"global_threshold": 0.4, "by_group": {"object|2": {"threshold": 0.4}}}
+        out = generate_records(
+            rows,
+            TemplateRewriteBackend(),
+            confidence_threshold=0.1,
+            threshold_policy=policy,
+        )
+        self.assertEqual(out[0]["metadata"]["threshold_policy"], "group_conditional")
 
 
 class BackendRegistryTests(unittest.TestCase):

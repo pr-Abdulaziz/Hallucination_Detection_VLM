@@ -6,6 +6,7 @@ import copy
 import random
 import logging
 import argparse
+import sys
 import numpy as np
 from PIL import Image
 from argparse import Namespace
@@ -18,6 +19,7 @@ from torch.utils.data import Dataset
 import transformers
 from transformers import TrainerCallback
 from transformers import HfArgumentParser, TrainingArguments
+from tqdm.auto import tqdm
 
 from fg_pipeline.adaptive_dpo import normalize_preference_item, resolve_image_path
 from fg_pipeline.adaptive_dpo.trainer_adaptive import AdaptiveLlavaDPOTrainer
@@ -36,6 +38,11 @@ from peft import (
 )
 
 local_rank = None
+
+
+def _tqdm_disabled() -> bool:
+    rank = int(os.environ.get("LOCAL_RANK", "-1"))
+    return rank not in (-1, 0) or not sys.stderr.isatty()
         
 @dataclass
 class ModelArguments:
@@ -222,7 +229,12 @@ class LazySupervisedDataset(Dataset):
     def hsa_dpo_process(self, hsa_dpo_data):
         """Process HSA-DPO preference data"""
         processed_data = []
-        for item in hsa_dpo_data:
+        for item in tqdm(
+            hsa_dpo_data,
+            desc="Stage 6 preprocess",
+            unit="sample",
+            disable=_tqdm_disabled(),
+        ):
             sample = normalize_preference_item(item)
             image_id = sample.get("id", "")
             question = sample.get("question", "")
@@ -796,6 +808,7 @@ def main():
         dataloader_num_workers=script_args.dataloader_num_workers,
         fp16=script_args.fp16,
         seed=script_args.seed,
+        disable_tqdm=False,
     )
 
     print("Train:", training_args)
