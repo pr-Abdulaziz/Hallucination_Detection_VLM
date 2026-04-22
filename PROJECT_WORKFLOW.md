@@ -160,7 +160,8 @@ that sentence in `response_text`; the raw GPT supervision is preserved under
    backend is smoke-only).
 2. Replace or augment the heuristic Stage 3 judge with a stronger LLM/VLM
    verifier backend.
-3. Run the full Stage 1 -> Stage 4 pipeline on a suitable multi-GPU box.
+3. Run the full Stage 1 -> Stage 4 pipeline on a suitable multi-GPU box,
+   but gate Stage 4 on a quick inspection of the Stage 3 preference pairs.
 4. Reproduce the paper baseline separately with the released preference file.
 
 ## Execution Guide
@@ -210,6 +211,12 @@ runs, `--strict` to fail on empty rewrites.
 Stage 2 skips non-hallucinated rows. Output goes to
 `output/fghd/stage2/rewrites.jsonl` with a compact `stats.json` alongside.
 
+For real experiments, do not use the default `template` backend. Use:
+
+```bash
+BACKEND=llava MODEL_PATH=models/llava-v1.5-13b bash scripts/run_stage2_rewrites.sh
+```
+
 ### Stage 3 majority-vote preference validation (requires Stage 2 output)
 
 Run Stages 1-2 first, then Stage 3:
@@ -241,6 +248,14 @@ Stage 3 writes:
 
 Only rows with at least 2 approvals are kept for Stage 4.
 
+Before launching Stage 4 on a long run, inspect:
+
+- `output/fghd/stage3/stats.json`
+- a small sample of `output/fghd/stage3/preference_pairs.jsonl`
+
+The current default Stage 3 backend is heuristic and smoke-oriented. It is
+useful for pipeline bring-up, but it is not yet the final research judge.
+
 ### Stage 4 training (severity-aware DPO)
 
 For the redesigned Stage 1-4 pipeline, run Stage 4 through the wrapper after
@@ -253,6 +268,10 @@ bash scripts/run_stage4_train.sh
 This points the unchanged trainer at
 `output/fghd/stage3/preference_pairs.jsonl` and writes checkpoints under
 `output/fghd/stage4_llava/`.
+
+For the redesigned pipeline, `scripts/run_stage4_train.sh` intentionally uses
+the repo root as `IMAGE_FOLDER` so Stage 3 preference rows with image paths
+such as `vg/images/...` resolve correctly.
 
 For a baseline-only reproduction run, keep using the released preference file
 directly:
@@ -272,6 +291,13 @@ Relevant knobs exposed by the script:
 - `USE_CHOSEN_SCORE` (default `False`)
 - `USE_REJECTED_SCORE` (default `True`; this is what reproduces the paper's severity-weighted rejected term)
 - `BATCH_SIZE`, `EPOCH`, `LEARNING_RATE`, `NUM_GPUS`
+
+Current data limitation:
+
+- the released detection supervision does not expose the original user prompt
+  separately
+- the `question` field carried from Stage 1 through Stage 4 may therefore
+  mirror the assessed candidate sentence rather than a distinct upstream prompt
 
 ## Evaluation Guide
 
