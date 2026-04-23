@@ -60,7 +60,7 @@ The repo has two layers.
 - `hsa_dpo/`
   Original HSA-DPO baseline. Still the active Stage 4 training stack.
 - `fg_pipeline/`
-  Extension layer. Hosts Stage 1, shared utilities, curated data
+  Extension layer. Hosts Stages 1-3, shared utilities, curated data
   fixtures, and the evaluation suite.
 
 ## Folder Layout
@@ -132,7 +132,10 @@ The repo has two layers.
 
 - Do not remove or rename files under `hsa_dpo/` unless we explicitly decide to patch the baseline.
 - `fg_pipeline/data/hsa_dpo_detection.jsonl` is a mirror of `hsa_dpo/data/hsa_dpo_detection.jsonl`.
-- `vg/images/` is only for Stage 1 supervision imagery.
+- `vg/images/` is the image store for the redesigned Stage 1-4 pipeline.
+  Stage 1 reads supervision rows that point into `vg/images/...`, and those
+  image paths are carried forward through Stage 2, Stage 3, and the redesigned
+  Stage 4 wrapper.
 - `hsa_dpo/data/images/` is only for baseline preference training.
 - Do not mix the two image stores.
 
@@ -200,6 +203,10 @@ bash scripts/run_stage1_detector_dataset.sh
 bash scripts/run_stage1_detector_train.sh
 bash scripts/run_stage1_export_benchmarks.sh
 ```
+
+For a single-GPU Vast box, start with the parser-backed Stage 1 path above.
+The detector helpers are research add-ons, not a prerequisite for the
+Stage 1 -> 4 training pipeline.
 
 ### Stage 2 critique-guided rewrite (requires Stage 1 output)
 
@@ -280,6 +287,10 @@ The current smoke default is heuristic. The local research path is the
 `qwen_llava_ensemble` backend, which enforces both 2-of-3 approval and
 cross-family approval coverage.
 
+If you do not have a local Qwen checkpoint on the Vast box yet, keep Stage 3 on
+the heuristic backend for bring-up and only switch to the ensemble after both
+model paths are present and a small smoke sample looks sane.
+
 ### Stage 4 training (severity-aware DPO)
 
 For the redesigned Stage 1-4 pipeline, run Stage 4 through the wrapper after
@@ -316,6 +327,17 @@ Relevant knobs exposed by the script:
 - `USE_REJECTED_SCORE` (default `True`; this is what reproduces the paper's severity-weighted rejected term)
 - `BATCH_SIZE`, `EPOCH`, `LEARNING_RATE`, `NUM_GPUS`
 
+For a `1x RTX 6000 Ada (48 GB)` Vast instance, treat Stage 4 as a pilot run
+first. Use:
+
+```bash
+bash scripts/vastai/run_pilot_train.sh
+```
+
+That wrapper defaults to `NUM_GPUS=1`, `BATCH_SIZE=1`, and `EPOCH=1`. Move to a
+larger or multi-GPU box only after the pilot run proves that the environment,
+data paths, and trainer wiring are correct.
+
 Current data limitation:
 
 - the released detection supervision does not expose the original user prompt
@@ -349,6 +371,27 @@ Strict paper comparison is local-only. It validates the manifest and requires:
 - `num_beams = 1`
 - `conv_mode = vicuna_v1`
 - one shared `max_new_tokens` value across the manifest
+
+The strict runner is only as fair as the benchmark adapter behind each row.
+Keep strict paper comparison separate from supplemental rows, and do not treat
+skipped local-judge benchmarks as missing paper deltas.
+
+## Vast AI Notes
+
+- If `ssh` connects at the TCP level but hangs with `Connection timed out during
+  banner exchange`, refresh the live SSH port with `vastai show instances` and
+  retry. If the port is correct and the banner still never arrives, reboot the
+  instance from Vast before assuming there is a repo-side failure.
+- On a fresh box, the safe bring-up order is:
+  1. `bash scripts/vastai/bootstrap.sh`
+  2. download `models/llava-v1.5-13b`
+  3. `bash scripts/run_stage1_critiques.sh`
+  4. `BACKEND=llava MODEL_PATH=models/llava-v1.5-13b bash scripts/run_stage2_rewrites.sh`
+  5. `bash scripts/run_stage3_validate.sh`
+  6. inspect `output/fghd/stage3/stats.json`
+  7. `bash scripts/vastai/run_pilot_train.sh`
+- Do not start a long Stage 4 run on a single 48 GB GPU before checking that
+  Stage 2 rewrites and Stage 3 preference pairs are actually sane.
 
 Supplemental rows are reported separately when a benchmark is proxy-only,
 uses an unmatched local evaluator, or lacks a paper reference row.
