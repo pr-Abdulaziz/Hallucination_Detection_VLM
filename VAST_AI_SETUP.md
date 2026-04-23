@@ -37,6 +37,7 @@ These should stay **local-only** and are ignored by Git:
 
 - `VAST_AI_SETUP.local.md`
 - `.vastai/`
+- `scripts/vastai/defaults.local.env`
 - `scripts/vastai/*.local.sh`
 - `scripts/vastai/*.local.env`
 - `scripts/vastai/*.local.py`
@@ -153,6 +154,30 @@ What it does **not** do:
 - it does not change your SSH config
 - it does not inject API keys
 - it does not download gated models automatically
+
+### Optional: per-instance defaults for a new template / GPU
+
+If you move to a different Vast template or GPU, do not keep re-editing the
+tracked launchers. Instead, create an ignored override file on the remote box:
+
+```bash
+cp scripts/vastai/defaults.env.example scripts/vastai/defaults.local.env
+```
+
+Then edit only `scripts/vastai/defaults.local.env` for the new machine, for
+example:
+
+```bash
+MODEL_PATH=models/llava-v1.5-13b
+QWEN_MODEL_PATH=models/Qwen-VL-Chat
+LLAVA_MODEL_PATH=models/llava-v1.5-13b
+NUM_GPUS=1
+BATCH_SIZE=1
+EPOCH=1
+```
+
+The Stage 2, Stage 3, Stage 4, and pilot-train launchers now load this file
+automatically when it exists.
 
 ## 6. Step 5: Download The Base Model
 
@@ -303,3 +328,11 @@ are not yet paper-faithful are intentionally kept out of the strict paper table.
 7. run `bash scripts/run_stage4_train.sh` on a 2-GPU box for the redesigned
    pipeline, or `bash hsa_dpo_train.sh` for a baseline-only reproduction
 8. optionally run `bash scripts/run_paper_eval.sh` / `bash scripts/run_general_eval.sh`
+
+If you switch to a new template or GPU type, the first thing to copy over is:
+
+```bash
+cp scripts/vastai/defaults.env.example scripts/vastai/defaults.local.env
+```
+
+Then set the per-box values there instead of editing the tracked launchers.

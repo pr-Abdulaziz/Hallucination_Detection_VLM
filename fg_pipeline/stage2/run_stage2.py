@@ -29,7 +29,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-from fg_pipeline.io_utils import ensure_parent_dir, read_jsonl, write_jsonl
+from fg_pipeline.io_utils import count_jsonl_rows, ensure_parent_dir, maybe_tqdm, read_jsonl, write_jsonl
 from fg_pipeline.paths import (
     DEFAULT_STAGE2_INPUT,
     DEFAULT_STAGE2_OUTPUT,
@@ -137,8 +137,10 @@ def _run_pipeline(
     *,
     strict: bool,
     limit: int | None,
+    total: int | None = None,
 ) -> Iterator[dict[str, Any]]:
-    for i, row in enumerate(rows):
+    progress = maybe_tqdm(rows, desc="Stage 2", total=total)
+    for i, row in enumerate(progress):
         if limit is not None and i >= limit:
             break
         stats.total_input += 1
@@ -218,6 +220,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     stats = _Stats(backend_name=backend.name)
+    total_rows = count_jsonl_rows(args.input)
+    if args.limit is not None:
+        total_rows = min(total_rows, args.limit)
+
     rows_iter = read_jsonl(args.input)
     ensure_parent_dir(args.output)
 
@@ -225,7 +231,12 @@ def main(argv: list[str] | None = None) -> int:
         write_jsonl(
             args.output,
             _run_pipeline(
-                backend, rows_iter, stats, strict=args.strict, limit=args.limit
+                backend,
+                rows_iter,
+                stats,
+                strict=args.strict,
+                limit=args.limit,
+                total=total_rows,
             ),
         )
     except RewriteError as exc:

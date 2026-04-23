@@ -13,7 +13,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Iterable
 
-from fg_pipeline.io_utils import ensure_parent_dir, read_jsonl, write_jsonl
+from fg_pipeline.io_utils import count_jsonl_rows, ensure_parent_dir, maybe_tqdm, read_jsonl, write_jsonl
 from fg_pipeline.paths import (
     DEFAULT_STAGE3_INPUT,
     DEFAULT_STAGE3_OUTPUT,
@@ -176,6 +176,7 @@ def _process_rows(
     *,
     strict: bool,
     limit: int | None,
+    total: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], _Stats]:
     stats = _Stats(
         backend_name=backend.name,
@@ -185,7 +186,8 @@ def _process_rows(
     audit_rows: list[dict[str, Any]] = []
     preference_rows: list[dict[str, Any]] = []
 
-    for index, row in enumerate(rows):
+    progress = maybe_tqdm(rows, desc="Stage 3", total=total)
+    for index, row in enumerate(progress):
         if limit is not None and index >= limit:
             break
         stats.total_input_rows += 1
@@ -299,11 +301,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        total_rows = count_jsonl_rows(args.input)
+        if args.limit is not None:
+            total_rows = min(total_rows, args.limit)
+
         audit_rows, preference_rows, stats = _process_rows(
             backend,
             read_jsonl(args.input),
             strict=args.strict,
             limit=args.limit,
+            total=total_rows,
         )
     except VerificationError as exc:
         print(f"Stage 3 verification failed: {exc}", file=sys.stderr)

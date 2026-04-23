@@ -1,0 +1,9 @@
+{
+  "backend": "heuristic",
+  "dropped_rows": 1,
+  "majority_threshold": 2,
+  "preference_pairs_emitted": 2,
+  "total_input_rows": 3,
+  "vote_count": 3,
+  "vote_rows_processed": 3
+}

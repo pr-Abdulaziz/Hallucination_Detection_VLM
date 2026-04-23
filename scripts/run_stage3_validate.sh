@@ -5,6 +5,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+VAST_LOCAL_ENV="${REPO_ROOT}/scripts/vastai/defaults.local.env"
+if [ -f "${VAST_LOCAL_ENV}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${VAST_LOCAL_ENV}"
+  set +a
+fi
+
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "${REPO_ROOT}/.venv/bin/activate" ]; then
   # shellcheck disable=SC1091
   source "${REPO_ROOT}/.venv/bin/activate"

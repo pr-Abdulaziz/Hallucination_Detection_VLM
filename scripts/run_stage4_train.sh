@@ -5,6 +5,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+VAST_LOCAL_ENV="${REPO_ROOT}/scripts/vastai/defaults.local.env"
+if [ -f "${VAST_LOCAL_ENV}" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${VAST_LOCAL_ENV}"
+  set +a
+fi
+
 DATA_PATH="${DATA_PATH:-${REPO_ROOT}/output/fghd/stage3/preference_pairs.jsonl}"
 IMAGE_FOLDER="${IMAGE_FOLDER:-${REPO_ROOT}}"
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/output/fghd/stage4_llava}"

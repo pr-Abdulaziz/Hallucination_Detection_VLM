@@ -21,7 +21,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from fg_pipeline.io_utils import ensure_parent_dir, read_jsonl, write_jsonl
+from fg_pipeline.io_utils import count_jsonl_rows, ensure_parent_dir, maybe_tqdm, read_jsonl, write_jsonl
 from fg_pipeline.paths import (
     DEFAULT_STAGE1_INPUT,
     DEFAULT_STAGE1_OUTPUT,
@@ -109,8 +109,10 @@ def _iter_records(
     *,
     strict: bool,
     limit: int | None,
+    total: int | None,
 ) -> Iterable[dict[str, Any]]:
-    for i, row in enumerate(rows):
+    progress = maybe_tqdm(rows, desc="Stage 1", total=total)
+    for i, row in enumerate(progress):
         if limit is not None and i >= limit:
             break
         result = backend.detect(row, strict=strict)
@@ -169,12 +171,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Stage 1 backend error: {exc}", file=sys.stderr)
         return 2
 
+    total_rows = count_jsonl_rows(args.input)
+    if args.limit is not None:
+        total_rows = min(total_rows, args.limit)
+
     rows_iter = read_jsonl(args.input)
     ensure_parent_dir(args.output)
     try:
         write_jsonl(
             args.output,
-            _iter_records(backend, rows_iter, strict=args.strict, limit=args.limit),
+            _iter_records(
+                backend,
+                rows_iter,
+                strict=args.strict,
+                limit=args.limit,
+                total=total_rows,
+            ),
         )
     except ParseError as exc:
         print(f"Stage 1 strict parse failed: {exc}", file=sys.stderr)

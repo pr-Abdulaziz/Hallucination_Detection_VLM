@@ -37,6 +37,17 @@ wheels/
 # Model weights
 /models/
 /output/
+!/output/
+!/output/fghd/
+!/output/fghd/stage1/
+!/output/fghd/stage1/*.jsonl
+!/output/fghd/stage1/*.json
+!/output/fghd/stage2/
+!/output/fghd/stage2/*.jsonl
+!/output/fghd/stage2/*.json
+!/output/fghd/stage3/
+!/output/fghd/stage3/*.jsonl
+!/output/fghd/stage3/*.json
 *.pt
 *.pth
 *.bin

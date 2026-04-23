@@ -165,6 +165,8 @@ that sentence in `response_text`; the raw GPT supervision is preserved under
 - Paper-core and general evaluation tooling under `fg_pipeline/eval/`.
 - Shared JSONL / path / schema utilities under `fg_pipeline/`.
 - Vast AI bootstrap scripts under `scripts/vastai/`.
+- Per-instance Vast overrides through ignored `scripts/vastai/defaults.local.env`
+  (copy from `scripts/vastai/defaults.env.example` when moving to a new box).
 
 ## What We Will Do Next
 
@@ -382,6 +384,10 @@ skipped local-judge benchmarks as missing paper deltas.
   banner exchange`, refresh the live SSH port with `vastai show instances` and
   retry. If the port is correct and the banner still never arrives, reboot the
   instance from Vast before assuming there is a repo-side failure.
+- If you move to a different Vast template or GPU, do not edit the tracked
+  launchers for one-off machine settings. Create
+  `scripts/vastai/defaults.local.env` from
+  `scripts/vastai/defaults.env.example` and keep the box-specific values there.
 - On a fresh box, the safe bring-up order is:
   1. `bash scripts/vastai/bootstrap.sh`
   2. download `models/llava-v1.5-13b`
