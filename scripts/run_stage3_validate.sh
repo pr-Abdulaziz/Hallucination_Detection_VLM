@@ -19,8 +19,10 @@ if [ -f "${VAST_LOCAL_ENV}" ]; then
     INPUT OUTPUT_DIR OUTPUT PREFERENCES_OUT STATS_OUT BACKEND
     LLAVA_MODEL_PATH LLAVA_MODEL_BASE LLAVA_CONV_MODE IMAGE_ROOT
     LLAVA_MAX_NEW_TOKENS GEMINI_MODEL GEMINI_MAX_OUTPUT_TOKENS
+    OPENAI_MODEL OPENAI_MAX_OUTPUT_TOKENS
     ROW_WORKERS LLAVA_DEVICE RESUME CHECKPOINT_EVERY LIMIT STRICT
     GEMINI_API_KEY GOOGLE_API_KEY
+    OPENAI_API_KEY
   )
   _VAST_OVERRIDES=()
   for _key in "${_VAST_OVERRIDE_KEYS[@]}"; do
@@ -59,18 +61,28 @@ LLAVA_MODEL_BASE="${LLAVA_MODEL_BASE:-}"
 LLAVA_CONV_MODE="${LLAVA_CONV_MODE:-vicuna_v1}"
 IMAGE_ROOT="${IMAGE_ROOT:-${REPO_ROOT}}"
 LLAVA_MAX_NEW_TOKENS="${LLAVA_MAX_NEW_TOKENS:-128}"
-GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-pro}"
+GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash-lite}"
 GEMINI_MAX_OUTPUT_TOKENS="${GEMINI_MAX_OUTPUT_TOKENS:-128}"
+OPENAI_MODEL="${OPENAI_MODEL:-gpt-4o-mini}"
+OPENAI_MAX_OUTPUT_TOKENS="${OPENAI_MAX_OUTPUT_TOKENS:-128}"
 ROW_WORKERS="${ROW_WORKERS:-1}"
 LLAVA_DEVICE="${LLAVA_DEVICE:-}"
 RESUME="${RESUME:-0}"
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-50}"
 
-if [ "${BACKEND}" = "heuristic" ] && [ "${_BACKEND_EXPLICIT}" != "1" ] && [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ]; then
-  BACKEND="gemini_two_vote"
+if [ "${BACKEND}" = "heuristic" ] && [ "${_BACKEND_EXPLICIT}" != "1" ]; then
+  if [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
+    BACKEND="gemini_openai_two_vote"
+  elif [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ]; then
+    BACKEND="gemini_two_vote"
+  fi
 fi
 
 if [ "${BACKEND}" = "gemini_two_vote" ] && [ "${ROW_WORKERS}" = "1" ] && [ "${_ROW_WORKERS_EXPLICIT}" != "1" ]; then
+  ROW_WORKERS=4
+fi
+
+if [ "${BACKEND}" = "gemini_openai_two_vote" ] && [ "${ROW_WORKERS}" = "1" ] && [ "${_ROW_WORKERS_EXPLICIT}" != "1" ]; then
   ROW_WORKERS=4
 fi
 
@@ -150,6 +162,20 @@ if [ "${BACKEND}" = "gemini_two_vote" ]; then
     --image-root "${IMAGE_ROOT}"
     --gemini-model "${GEMINI_MODEL}"
     --gemini-max-output-tokens "${GEMINI_MAX_OUTPUT_TOKENS}"
+  )
+fi
+
+if [ "${BACKEND}" = "gemini_openai_two_vote" ]; then
+  if [ -z "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ] || [ -z "${OPENAI_API_KEY:-}" ]; then
+    echo "gemini_openai_two_vote requires GEMINI_API_KEY or GOOGLE_API_KEY, plus OPENAI_API_KEY" >&2
+    exit 1
+  fi
+  CMD+=(
+    --image-root "${IMAGE_ROOT}"
+    --gemini-model "${GEMINI_MODEL}"
+    --gemini-max-output-tokens "${GEMINI_MAX_OUTPUT_TOKENS}"
+    --openai-model "${OPENAI_MODEL}"
+    --openai-max-output-tokens "${OPENAI_MAX_OUTPUT_TOKENS}"
   )
 fi
 

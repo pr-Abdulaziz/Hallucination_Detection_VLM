@@ -17,8 +17,10 @@ from fg_pipeline.stage2.schemas import Stage2Record
 from fg_pipeline.stage3 import (
     APPROVALS_REQUIRED,
     GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION,
+    GEMINI_OPENAI_TWO_VOTE_POLICY_VERSION,
     GEMINI_TWO_VOTE_POLICY_VERSION,
     GeminiLlavaTwoVoteBackend,
+    GeminiOpenAITwoVoteBackend,
     GeminiTwoVoteBackend,
     HeuristicVerificationBackend,
     Stage3Record,
@@ -210,6 +212,14 @@ class BackendRegistryTests(unittest.TestCase):
     def test_get_backend_returns_heuristic(self) -> None:
         backend = get_backend("heuristic")
         self.assertIsInstance(backend, HeuristicVerificationBackend)
+
+    def test_get_backend_returns_gemini_openai_with_fake_runtimes(self) -> None:
+        backend = get_backend(
+            "gemini_openai_two_vote",
+            gemini_runtime=object(),
+            openai_runtime=object(),
+        )
+        self.assertIsInstance(backend, GeminiOpenAITwoVoteBackend)
 
     def test_unknown_backend_raises(self) -> None:
         with self.assertRaises(ValueError):
@@ -403,7 +413,57 @@ class GeminiTwoVoteBackendTests(unittest.TestCase):
                     "--row-workers", "2",
                 ]
             )
-            self.assertEqual(rc, 2)
+        self.assertEqual(rc, 2)
+
+
+class GeminiOpenAITwoVoteBackendTests(unittest.TestCase):
+    class _FakeRuntime:
+        def __init__(self, responses: dict[str, str]) -> None:
+            self.responses = responses
+
+        def judge(self, record, criterion: str) -> str:
+            return self.responses[criterion]
+
+    @staticmethod
+    def _response(approved: bool, reason: str) -> str:
+        return json.dumps({"approved": approved, "reason": reason})
+
+    def _backend_for_outcomes(self, vote1: bool, vote2: bool) -> GeminiOpenAITwoVoteBackend:
+        return GeminiOpenAITwoVoteBackend(
+            gemini_runtime=self._FakeRuntime(
+                {"hallucination_removal": self._response(vote1, "gemini")}
+            ),
+            openai_runtime=self._FakeRuntime(
+                {"content_preservation": self._response(vote2, "openai")}
+            ),
+        )
+
+    def test_gemini_openai_requires_both_approvals(self) -> None:
+        backend = self._backend_for_outcomes(True, True)
+        audit_rows, pref_rows, stats = stage3_run._process_rows(
+            backend,
+            [_make_stage2_record().to_dict()],
+            strict=False,
+            limit=None,
+        )
+
+        self.assertTrue(audit_rows[0]["passed_majority"])
+        self.assertEqual(len(pref_rows), 1)
+        self.assertEqual(stats.vote_policy_version, GEMINI_OPENAI_TWO_VOTE_POLICY_VERSION)
+        self.assertEqual(audit_rows[0]["metadata"]["approved_families"], ["gemini", "openai"])
+        self.assertEqual([vote["model_family"] for vote in audit_rows[0]["votes"]], ["gemini", "openai"])
+
+    def test_gemini_openai_rejects_one_approval(self) -> None:
+        backend = self._backend_for_outcomes(True, False)
+        audit_rows, pref_rows, _ = stage3_run._process_rows(
+            backend,
+            [_make_stage2_record().to_dict()],
+            strict=False,
+            limit=None,
+        )
+
+        self.assertFalse(audit_rows[0]["passed_majority"])
+        self.assertEqual(pref_rows, [])
 
 
 class CLISmokeTests(unittest.TestCase):

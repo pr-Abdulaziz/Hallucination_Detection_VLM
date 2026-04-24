@@ -2,7 +2,7 @@
 
 The default backend remains a deterministic heuristic verifier suitable for
 local smoke runs. Research runs use hosted Gemini judges, optionally paired
-with a local LLaVA judge for cross-family validation.
+with a local LLaVA judge or hosted OpenAI judge for cross-family validation.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ APPROVALS_REQUIRED = 2
 VOTE_POLICY_VERSION = "heuristic_v1"
 GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION = "gemini_llava_two_vote_v1"
 GEMINI_TWO_VOTE_POLICY_VERSION = "gemini_two_vote_v1"
+GEMINI_OPENAI_TWO_VOTE_POLICY_VERSION = "gemini_openai_two_vote_v1"
 
 _CRITERIA = {
     1: "hallucination_removal",
@@ -41,6 +42,10 @@ _GEMINI_LLAVA_FAMILY_BY_VOTE = {
 _GEMINI_TWO_VOTE_FAMILY_BY_VOTE = {
     1: "gemini",
     2: "gemini",
+}
+_GEMINI_OPENAI_FAMILY_BY_VOTE = {
+    1: "gemini",
+    2: "openai",
 }
 _WORD_RE = re.compile(r"\w+")
 
@@ -556,6 +561,100 @@ class _GeminiJudgeRuntime:
         raise RuntimeError(f"Gemini API request failed: {last_error}")
 
 
+class _OpenAIJudgeRuntime:
+    family = "openai"
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        model: str = "gpt-4o-mini",
+        image_root: str | None = None,
+        max_output_tokens: int = 128,
+        temperature: float = 0.0,
+        timeout_seconds: int = 60,
+        retries: int = 3,
+    ) -> None:
+        self._api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if not self._api_key:
+            raise EnvironmentError("gemini_openai_two_vote requires OPENAI_API_KEY")
+        self._model = model
+        self._image_root = Path(image_root) if image_root else Path(".")
+        self._max_output_tokens = max_output_tokens
+        self._temperature = temperature
+        self._timeout_seconds = timeout_seconds
+        self._retries = max(1, retries)
+
+    def _resolved_image(self, record: dict[str, Any]) -> Path | None:
+        image_path = record.get("image")
+        if not image_path:
+            return None
+        candidate = Path(image_path)
+        if not candidate.is_absolute():
+            candidate = self._image_root / candidate
+        return candidate if candidate.exists() else None
+
+    def _image_url_part(self, image_path: Path) -> dict[str, Any]:
+        data = image_path.read_bytes()
+        mime_type = mimetypes.guess_type(str(image_path))[0] or "image/jpeg"
+        encoded = base64.b64encode(data).decode("ascii")
+        return {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{mime_type};base64,{encoded}",
+                "detail": "low",
+            },
+        }
+
+    def judge(self, record: dict[str, Any], criterion: str) -> str:
+        prompt = build_vote_prompt(record, criterion)
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        image_path = self._resolved_image(record)
+        if image_path is not None:
+            content.append(self._image_url_part(image_path))
+
+        payload = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": content}],
+            "temperature": self._temperature,
+            "max_tokens": self._max_output_tokens,
+            "response_format": {"type": "json_object"},
+        }
+        response = self._request(payload)
+        try:
+            return str(response["choices"][0]["message"]["content"]).strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ValueError(f"unexpected OpenAI response shape: {_shorten_raw_output(json.dumps(response))}") from exc
+
+    def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        body = json.dumps(payload).encode("utf-8")
+        last_error: Exception | None = None
+        for attempt in range(self._retries):
+            req = urllib_request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            try:
+                with urllib_request.urlopen(req, timeout=self._timeout_seconds) as handle:
+                    return json.loads(handle.read().decode("utf-8"))
+            except urllib_error.HTTPError as exc:
+                last_error = exc
+                if exc.code not in {408, 409, 429, 500, 502, 503, 504} or attempt == self._retries - 1:
+                    detail = exc.read().decode("utf-8", errors="replace")
+                    raise RuntimeError(f"OpenAI API HTTP {exc.code}: {_shorten_raw_output(detail)}") from exc
+            except urllib_error.URLError as exc:
+                last_error = exc
+                if attempt == self._retries - 1:
+                    raise RuntimeError(f"OpenAI API request failed: {exc}") from exc
+            time.sleep(2 ** attempt)
+        raise RuntimeError(f"OpenAI API request failed: {last_error}")
+
+
 class GeminiLlavaTwoVoteBackend:
     """Hosted Gemini + local LLaVA backend with a fixed two-vote decision.
 
@@ -702,6 +801,80 @@ class GeminiTwoVoteBackend:
             )
 
 
+class GeminiOpenAITwoVoteBackend:
+    """Hosted Gemini + OpenAI backend with a fixed two-vote decision.
+
+    Vote 1: Gemini hallucination removal
+    Vote 2: OpenAI content preservation
+
+    A pair passes only when both judges approve, so API failures or either
+    rejection send the row to Stage 4 repair.
+    """
+
+    name = "gemini_openai_two_vote"
+    policy_version = GEMINI_OPENAI_TWO_VOTE_POLICY_VERSION
+    approval_families_required = ("gemini", "openai")
+    vote_count = 2
+    approvals_required = 2
+    supports_row_parallelism = True
+
+    def __init__(
+        self,
+        *,
+        image_root: str | None = None,
+        gemini_model: str = "gemini-2.5-flash-lite",
+        gemini_max_output_tokens: int = 128,
+        gemini_temperature: float = 0.0,
+        openai_model: str = "gpt-4o-mini",
+        openai_max_output_tokens: int = 128,
+        openai_temperature: float = 0.0,
+        gemini_runtime: Any | None = None,
+        openai_runtime: Any | None = None,
+    ) -> None:
+        self._gemini = gemini_runtime or _GeminiJudgeRuntime(
+            model=gemini_model,
+            image_root=image_root,
+            max_output_tokens=gemini_max_output_tokens,
+            temperature=gemini_temperature,
+        )
+        self._openai = openai_runtime or _OpenAIJudgeRuntime(
+            model=openai_model,
+            image_root=image_root,
+            max_output_tokens=openai_max_output_tokens,
+            temperature=openai_temperature,
+        )
+
+    def vote(self, record: dict[str, Any], *, vote_index: int, strict: bool = False) -> VoteDecision:
+        if vote_index not in _GEMINI_OPENAI_FAMILY_BY_VOTE:
+            raise VerificationError(f"unsupported vote_index={vote_index}; expected 1..2")
+        criterion = _CRITERIA[vote_index]
+        family = _GEMINI_OPENAI_FAMILY_BY_VOTE[vote_index]
+        runtime = self._gemini if family == "gemini" else self._openai
+        try:
+            raw = runtime.judge(record, criterion)
+            payload = _extract_json_object(raw)
+            approved = _parse_boolean(payload.get("approved"))
+            reason = str(payload.get("reason") or "").strip() or "no reason provided"
+            return VoteDecision(
+                vote_index=vote_index,
+                criterion=criterion,
+                approved=approved,
+                reason=reason,
+                model_family=family,
+                backend_name=self.name,
+            )
+        except Exception as exc:
+            if strict:
+                raise VerificationError(f"{family} judge failed for vote {vote_index}: {exc}") from exc
+            return _build_parse_failure_vote(
+                vote_index=vote_index,
+                criterion=criterion,
+                backend_name=self.name,
+                model_family=family,
+                error=exc,
+            )
+
+
 def evaluate_votes(backend: VerificationBackend, votes: list[VoteDecision]) -> tuple[bool, dict[str, Any]]:
     approvals = sum(1 for vote in votes if vote.approved)
     approved_families = sorted(
@@ -749,10 +922,23 @@ def get_backend(name: str, **kwargs: Any) -> VerificationBackend:
             gemini_temperature=float(kwargs.get("gemini_temperature", 0.0)),
             gemini_runtime=kwargs.get("gemini_runtime"),
         )
+    if key == GeminiOpenAITwoVoteBackend.name:
+        return GeminiOpenAITwoVoteBackend(
+            image_root=kwargs.get("image_root"),
+            gemini_model=kwargs.get("gemini_model", "gemini-2.5-flash-lite"),
+            gemini_max_output_tokens=int(kwargs.get("gemini_max_output_tokens", 128)),
+            gemini_temperature=float(kwargs.get("gemini_temperature", 0.0)),
+            openai_model=kwargs.get("openai_model", "gpt-4o-mini"),
+            openai_max_output_tokens=int(kwargs.get("openai_max_output_tokens", 128)),
+            openai_temperature=float(kwargs.get("openai_temperature", 0.0)),
+            gemini_runtime=kwargs.get("gemini_runtime"),
+            openai_runtime=kwargs.get("openai_runtime"),
+        )
     available = ", ".join((
         HeuristicVerificationBackend.name,
         GeminiLlavaTwoVoteBackend.name,
         GeminiTwoVoteBackend.name,
+        GeminiOpenAITwoVoteBackend.name,
     ))
     raise ValueError(f"unknown stage3 backend {name!r}; available: {available}")
 
@@ -763,11 +949,13 @@ __all__ = [
     "HeuristicVerificationBackend",
     "GeminiLlavaTwoVoteBackend",
     "GeminiTwoVoteBackend",
+    "GeminiOpenAITwoVoteBackend",
     "VOTE_COUNT",
     "APPROVALS_REQUIRED",
     "VOTE_POLICY_VERSION",
     "GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION",
     "GEMINI_TWO_VOTE_POLICY_VERSION",
+    "GEMINI_OPENAI_TWO_VOTE_POLICY_VERSION",
     "evaluate_votes",
     "get_backend",
 ]

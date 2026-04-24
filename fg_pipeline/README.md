@@ -144,9 +144,9 @@ Stage 3 consumes Stage 2 output and decides whether the rewrite is good enough
 to become a training pair.
 
 The default backend (`heuristic`) is deterministic and smoke-only. Research
-runs use `gemini_two_vote` for the fastest hosted path, or
-`gemini_llava_two_vote` when you need one hosted Gemini vote plus one local
-LLaVA vote.
+runs use `gemini_openai_two_vote` for cross-vendor hosted validation,
+`gemini_two_vote` for the fastest Gemini-only path, or `gemini_llava_two_vote`
+when you need one hosted Gemini vote plus one local LLaVA vote.
 
 ```bash
 bash scripts/run_stage3_validate.sh
@@ -162,10 +162,10 @@ python -m fg_pipeline.stage3.run_stage3 \
   --stats-out output/fghd/stage3/stats.json
 ```
 
-Flags: `--backend heuristic|gemini_two_vote|gemini_llava_two_vote`, `--limit N`
+Flags: `--backend heuristic|gemini_openai_two_vote|gemini_two_vote|gemini_llava_two_vote`, `--limit N`
 (smoke runs), `--strict` (fail on malformed Stage 2 rows or backend errors),
-`--llava-model-path`, `--llava-model-base`, `--gemini-model`, `--image-root`,
-`--resume`, and `--checkpoint-every`.
+`--llava-model-path`, `--llava-model-base`, `--gemini-model`, `--openai-model`,
+`--image-root`, `--resume`, and `--checkpoint-every`.
 
 Stage 3 output:
 

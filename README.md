@@ -46,7 +46,7 @@ Project status:
 - the project method has been redesigned around five stages: (1) critique detection / extraction, (2) critique-guided rewrite, (3) preference validation, (4) LLaVA repair of rejected rewrites, and (5) severity-margin DPO
 - Stage 1 is implemented under `fg_pipeline/stage1/`; the default backend (`ReleasedAnnotationBackend`) parses the released `hsa_dpo_detection.jsonl` supervision into a normalized `Stage1Record` without any model inference, and the local research path now includes a `LlavaDetectorBackend` plus detector dataset-prep / train / benchmark-export entrypoints
 - Stage 2 is implemented under `fg_pipeline/stage2/`; it consumes Stage 1 JSONL and emits one corrected rewrite per hallucinated record; the default `TemplateRewriteBackend` is smoke-only and deterministic; the intended research path is `LlavaRewriteBackend` using the vendored LLaVA-v1.5 stack
-- Stage 3 is implemented under `fg_pipeline/stage3/`; it runs verification votes per rewrite, writes an audit JSONL, and exports initially approved preference pairs; the default `HeuristicVerificationBackend` is deterministic and smoke-oriented, while research runs use `gemini_two_vote` or `gemini_llava_two_vote`
+- Stage 3 is implemented under `fg_pipeline/stage3/`; it runs verification votes per rewrite, writes an audit JSONL, and exports initially approved preference pairs; the default `HeuristicVerificationBackend` is deterministic and smoke-oriented, while research runs use `gemini_openai_two_vote`, `gemini_two_vote`, or `gemini_llava_two_vote`
 - Stage 4 is implemented under `fg_pipeline/stage4/`; it repairs Stage 3 rejected rewrites with LLaVA and writes the final combined preference dataset
 - Stage 5 trains LLaVA with severity-margin DPO through `scripts/run_stage5_train.sh`; the legacy HSA-DPO wrapper remains available as `scripts/run_stage4_train.sh`
 - the earlier confidence-based Stage 3-5 implementation remains fully removed and the new design does not reintroduce any confidence / calibration / threshold logic
@@ -243,12 +243,14 @@ preference pairs to `output/fghd/stage3/preference_pairs.jsonl`.
 Research Stage 3 backend:
 
 ```bash
-BACKEND=gemini_two_vote \
+BACKEND=gemini_openai_two_vote \
+GEMINI_MODEL=gemini-2.5-flash-lite \
+OPENAI_MODEL=gpt-4o-mini \
 bash scripts/run_stage3_validate.sh
 ```
 
-With `GEMINI_API_KEY` or `GOOGLE_API_KEY` set, the Stage 3 launcher
-automatically switches from the smoke `heuristic` backend to `gemini_two_vote`.
+With `GEMINI_API_KEY` or `GOOGLE_API_KEY` plus `OPENAI_API_KEY` set, the Stage 3 launcher
+automatically switches from the smoke `heuristic` backend to `gemini_openai_two_vote`.
 Use `BACKEND=gemini_llava_two_vote LLAVA_MODEL_PATH=models/llava-v1.5-13b` if
 you want one hosted Gemini vote plus one local LLaVA vote.
 

@@ -36,7 +36,7 @@ For the full research method, see [README.md](README.md).
   2 rewrites, runs verification votes per row, writes a Stage 3 audit
   artifact, and exports trainer-compatible preference pairs. The default
   `HeuristicVerificationBackend` is deterministic and smoke-oriented; research
-  runs use `gemini_two_vote` or `gemini_llava_two_vote`.
+  runs use `gemini_openai_two_vote`, `gemini_two_vote`, or `gemini_llava_two_vote`.
 - **Stage 4 is implemented** as `fg_pipeline/stage4/`. It repairs Stage 3
   rejected rewrites with LLaVA, writes repair audit rows, and combines Stage 3
   approved pairs plus repaired pairs into `output/fghd/stage4/final_preference_pairs.jsonl`.
@@ -276,14 +276,16 @@ python -m fg_pipeline.stage3.run_stage3 \
   --stats-out output/fghd/stage3/stats.json
 ```
 
-Useful flags: `--backend heuristic|gemini_two_vote|gemini_llava_two_vote`
+Useful flags: `--backend heuristic|gemini_openai_two_vote|gemini_two_vote|gemini_llava_two_vote`
 (heuristic is smoke-only), `--limit N` for smoke runs, `--strict` to fail on
 malformed Stage 2 rows, `--resume`, and `--checkpoint-every`.
 
-For the fastest research backend:
+For the recommended cross-vendor research backend:
 
 ```bash
-BACKEND=gemini_two_vote \
+BACKEND=gemini_openai_two_vote \
+GEMINI_MODEL=gemini-2.5-flash-lite \
+OPENAI_MODEL=gpt-4o-mini \
 bash scripts/run_stage3_validate.sh
 ```
 
@@ -311,7 +313,8 @@ Before launching Stage 4 repair on a long run, inspect:
 - a small sample of `output/fghd/stage3/preference_pairs.jsonl`
 
 The current smoke default is heuristic. With `GEMINI_API_KEY` or
-`GOOGLE_API_KEY` set, the launcher automatically selects `gemini_two_vote`.
+`GOOGLE_API_KEY` plus `OPENAI_API_KEY` set, the launcher automatically selects
+`gemini_openai_two_vote`.
 
 ### Stage 4 repair (LLaVA)
 

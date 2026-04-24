@@ -136,20 +136,32 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--llava-max-new-tokens",
         type=int,
-        default=64,
+        default=128,
         help="Max tokens for each LLaVA judge vote.",
     )
     parser.add_argument(
         "--gemini-model",
         type=str,
         default="gemini-2.5-flash-lite",
-        help="Gemini model for the gemini_llava_two_vote backend.",
+        help="Gemini model for hosted Stage 3 backends.",
     )
     parser.add_argument(
         "--gemini-max-output-tokens",
         type=int,
-        default=64,
+        default=128,
         help="Max output tokens for each Gemini judge vote.",
+    )
+    parser.add_argument(
+        "--openai-model",
+        type=str,
+        default="gpt-4o-mini",
+        help="OpenAI model for hosted Stage 3 backends.",
+    )
+    parser.add_argument(
+        "--openai-max-output-tokens",
+        type=int,
+        default=128,
+        help="Max output tokens for each OpenAI judge vote.",
     )
     parser.add_argument(
         "--llava-device",
@@ -231,7 +243,7 @@ def _validation_warnings(row: dict[str, Any]) -> list[str]:
 
 
 def _build_votes(backend: Any, row: dict[str, Any], *, strict: bool) -> tuple[list[VoteDecision], bool]:
-    if getattr(backend, "name", "") in {"gemini_llava_two_vote", "gemini_two_vote"}:
+    if getattr(backend, "name", "") in {"gemini_llava_two_vote", "gemini_two_vote", "gemini_openai_two_vote"}:
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {
                 vote_index: executor.submit(backend.vote, row, vote_index=vote_index, strict=strict)
@@ -519,9 +531,11 @@ def main(argv: list[str] | None = None) -> int:
             llava_max_new_tokens=args.llava_max_new_tokens,
             gemini_model=args.gemini_model,
             gemini_max_output_tokens=args.gemini_max_output_tokens,
+            openai_model=args.openai_model,
+            openai_max_output_tokens=args.openai_max_output_tokens,
             llava_device=args.llava_device,
         )
-    except (ImportError, FileNotFoundError, ValueError) as exc:
+    except (ImportError, FileNotFoundError, ValueError, OSError) as exc:
         print(f"Stage 3 backend error: {exc}", file=sys.stderr)
         return 2
     if args.row_workers > 1 and not _backend_supports_row_parallelism(backend):

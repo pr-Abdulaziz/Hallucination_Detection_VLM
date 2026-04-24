@@ -170,7 +170,9 @@ example:
 ```bash
 MODEL_PATH=models/llava-v1.5-13b
 LLAVA_MODEL_PATH=models/llava-v1.5-13b
-BACKEND=gemini_two_vote
+BACKEND=gemini_openai_two_vote
+GEMINI_MODEL=gemini-2.5-flash-lite
+OPENAI_MODEL=gpt-4o-mini
 LLAVA_DEVICE=cuda:0
 NUM_GPUS=1
 BATCH_SIZE=1
@@ -235,10 +237,12 @@ Use the real rewrite backend on a GPU box with:
 BACKEND=llava MODEL_PATH=models/llava-v1.5-13b bash scripts/run_stage2_rewrites.sh
 ```
 
-For the fastest research Stage 3 backend:
+For the recommended cross-vendor research Stage 3 backend:
 
 ```bash
-BACKEND=gemini_two_vote \
+BACKEND=gemini_openai_two_vote \
+GEMINI_MODEL=gemini-2.5-flash-lite \
+OPENAI_MODEL=gpt-4o-mini \
 bash scripts/run_stage3_validate.sh
 ```
 
@@ -349,8 +353,8 @@ are not yet paper-faithful are intentionally kept out of the strict paper table.
    backend (the default `template` backend works without a model)
 6. optionally run `bash scripts/run_stage3_validate.sh` to build clean
    preference pairs from the Stage 2 rewrites; if `GEMINI_API_KEY` or
-   `GOOGLE_API_KEY` is set, the launcher prefers `gemini_two_vote`
-   automatically
+   `GOOGLE_API_KEY` plus `OPENAI_API_KEY` is set, the launcher prefers
+   `gemini_openai_two_vote` automatically
 7. run `bash scripts/run_stage4_rewrite.sh` to repair Stage 3 rejects
 8. run `bash scripts/run_stage5_train.sh` on a GPU box for the redesigned
    pipeline, or `bash hsa_dpo_train.sh` for a baseline-only reproduction
