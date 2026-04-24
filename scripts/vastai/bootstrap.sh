@@ -25,7 +25,7 @@ fi
 source .venv/bin/activate
 
 python -m pip install --upgrade pip setuptools wheel
-python -m pip install -e ".[linux-train]"
+python -m pip install -e ".[linux-train,eval]"
 python -m pip install -U "huggingface_hub>=0.23.2,<1.0" modelscope
 
 echo
@@ -42,3 +42,4 @@ echo "6. bash scripts/run_stage4_rewrite.sh  # Stage 4 repair rejected rewrites"
 echo "7. bash scripts/run_stage5_train.sh  # Stage 5 severity-margin DPO"
 echo "   # For legacy Stage 3-only training: bash scripts/run_stage4_train.sh"
 echo "   # For baseline-only reproduction: bash hsa_dpo_train.sh"
+echo "8. bash scripts/vastai/install_eval_benchmarks.sh  # prepare eval deps and benchmark folders"

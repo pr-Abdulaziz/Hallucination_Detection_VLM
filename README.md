@@ -26,7 +26,7 @@
         <img src='https://img.shields.io/badge/Dataset-HuggingFace-yellow' alt='Dataset'></a>
         <a href="https://modelscope.cn/models/xiaowenyi/HSA-DPO">
         <img src='https://img.shields.io/badge/Model-ModelScope-blue' alt='Dataset'></a>
-
+        
   </p>
 </p>
 
@@ -100,12 +100,12 @@ hf download --repo-type dataset WenyiXiao/HSA-DPO --local-dir ./datasets
 
 ### Dataset Organization
 
-**For hallucination detection:**
+**For hallucination detection:** 
 - Training data: `hsa_dpo_detection.jsonl`
 - Images: from [Visual Genome](https://homes.cs.washington.edu/~ranjay/visualgenome/api.html), stored under `./vg/images`
 
-**For hallucination mitigation (HSA-DPO training):**
-- Preference data: `hsa_dpo_preference_llava1dot5.jsonl`
+**For hallucination mitigation (HSA-DPO training):** 
+- Preference data: `hsa_dpo_preference_llava1dot5.jsonl` 
 - Images: extracted into `./hsa_dpo/data/images`
 
 **Optional external data (not used by default):**
@@ -264,6 +264,7 @@ Evaluation launchers:
 bash scripts/run_paper_eval.sh
 bash scripts/run_general_eval.sh
 python -m fg_pipeline.eval.run_eval --help
+bash scripts/vastai/install_eval_benchmarks.sh
 ```
 
 Stage 4 repair launcher:
@@ -289,6 +290,9 @@ bash scripts/run_stage5_train.sh
 This wrapper points `DATA_PATH` at
 `output/fghd/stage4/final_preference_pairs.jsonl`, sets `OUTPUT_DIR` to
 `output/fghd/stage5_llava_margin`, and trains with `DPO_LOSS_TYPE=severity_margin`.
+It defaults to the paper-aligned budget: 2 epochs, learning rate `2e-6`,
+LoRA rank `128`, LoRA alpha `256`, DPO beta `0.1`, frozen projector, and
+target total batch size `32` via gradient accumulation.
 
 ### Legacy Training (Stage 3-only HSA-DPO)
 
@@ -326,6 +330,8 @@ bash hsa_dpo_train.sh
 - `beta`: Temperature parameter for DPO loss (default: 0.1)
 - `num_train_epochs`: Number of training epochs (default: 2)
 - `per_device_train_batch_size`: Batch size per GPU (default: 8)
+- `total_batch_size`: Effective total batch size target via `TOTAL_BATCH_SIZE` (default: 32)
+- `gradient_accumulation_steps`: Computed from `TOTAL_BATCH_SIZE` unless explicitly set
 - `learning_rate`: Learning rate (default: 2e-6)
 
 ### Multi-GPU Training
@@ -364,7 +370,10 @@ The intended 3-way comparison is:
 
 OpenAI is out of scope for the default workflow in this repo. The strict
 paper-comparison path is fully local-only. Supplemental local-judge benchmarks
-remain separate from the strict comparison table.
+remain separate from the strict comparison table. To run MMHal-Bench or
+LLaVA-Bench-in-the-Wild supplemental judging, set `OPENAI_JUDGE_MODEL` or pass
+`--openai-judge-model`; those rows stay outside the strict table unless the
+adapter marks them paper-faithful.
 
 ### Model Manifest
 
@@ -383,8 +392,8 @@ The evaluation runner expects a JSON manifest:
     "max_new_tokens": 512
   },
   {
-    "model_id": "ours_stage4_lora",
-    "model_path": "output/fghd/stage4_llava",
+    "model_id": "ours_stage5_lora",
+    "model_path": "output/fghd/stage5_llava_margin",
     "model_base": "models/llava-v1.5-13b",
     "kind": "lora",
     "conv_mode": "vicuna_v1",
@@ -425,7 +434,13 @@ Current implementation shape:
 
 ### Dataset Prerequisites
 
-Benchmark assets are not bundled in this repo. Prepare them separately.
+Benchmark assets are not bundled in this repo. Prepare them separately. On
+Vast, run this once to install evaluation dependencies and create the expected
+folder layout:
+
+```bash
+bash scripts/vastai/install_eval_benchmarks.sh
+```
 
 Typical required assets:
 
@@ -520,10 +535,10 @@ If you find this work useful, we would appreciate it if you could cite our paper
 
 ```bibtex
 @article{xiao2025hsa_dpo,
-  title     = {Detecting and Mitigating Hallucination in Large Vision Language Models
+  title     = {Detecting and Mitigating Hallucination in Large Vision Language Models 
                via Fine-Grained AI Feedback},
-  author    = {Xiao, Wenyi and Huang, Ziwei and Gan, Leilei and He, Wanggui and
-               Li, Haoyuan and Yu, Zhelun and Shu, Fangxun and Jiang, Hao and
+  author    = {Xiao, Wenyi and Huang, Ziwei and Gan, Leilei and He, Wanggui and 
+               Li, Haoyuan and Yu, Zhelun and Shu, Fangxun and Jiang, Hao and 
                Zhu, Linchao},
   journal   = {Proceedings of the AAAI Conference on Artificial Intelligence},
   volume    = {39},

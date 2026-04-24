@@ -198,11 +198,13 @@ def discover_stage_paths() -> dict[str, str]:
             output_root / "fghd" / "stage3",
         ],
         "stage4_dir": [
+            output_root / "fghd" / "stage5_llava_margin",
             output_root / "fghd" / "stage4_llava",
             output_root / "hsa_dpo_llava",
             output_root / "fghd" / "adaptive_dpo",
         ],
         "preference_pairs": [
+            output_root / "fghd" / "stage4" / "final_preference_pairs.jsonl",
             output_root / "fghd" / "stage3" / "preference_pairs.jsonl",
             repo_root() / "hsa_dpo" / "data" / "hsa_dpo_preference_llava1dot5.jsonl",
         ],

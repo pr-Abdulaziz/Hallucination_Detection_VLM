@@ -8,6 +8,7 @@ from fg_pipeline.eval.reporting import build_general_report, build_paper_compari
 from fg_pipeline.eval.schemas import BenchmarkSpec, MetricArtifact, ModelSpec
 from fg_pipeline.eval.utils import (
     discover_stage_paths,
+    getenv_openai_judge_model,
     load_model_specs,
     mkdir,
     summarize_stage3,
@@ -35,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image-root-override", default=None, help="Override benchmark image roots.")
     parser.add_argument("--dataset-root-override", default=None, help="Override benchmark dataset roots.")
     parser.add_argument("--skip-missing-datasets", action="store_true", help="Skip missing benchmark assets instead of failing.")
+    parser.add_argument("--openai-judge-model", default=None, help="Judge model for MMHal-Bench and LLaVA-Bench supplemental scoring.")
     parser.add_argument("--limit", type=int, default=None, help="Optional row limit for smoke tests.")
     return parser.parse_args()
 
@@ -128,6 +130,7 @@ def main() -> int:
     models = _load_models(args.models_json)
     selected = _selected_benchmarks(args)
     output_root = mkdir(Path(args.output_root) / args.run_name)
+    openai_judge_model = args.openai_judge_model or getenv_openai_judge_model()
 
     if not args.paper_core and not args.supplemental and not args.general:
         args.paper_core = True
@@ -152,8 +155,8 @@ def main() -> int:
             continue
 
         adapter = BENCHMARK_REGISTRY[benchmark_name]
-        if spec.judge_required:
-            note = "local judged evaluation not implemented for this benchmark in the current stack"
+        if spec.judge_required and not openai_judge_model:
+            note = "benchmark requires --openai-judge-model or OPENAI_JUDGE_MODEL"
             if args.skip_missing_datasets or args.supplemental:
                 availability[benchmark_name] = {"status": "skipped", "note": note}
                 continue
@@ -167,7 +170,7 @@ def main() -> int:
                         spec,
                         run_root=str(output_root),
                         limit=args.limit,
-                        openai_judge_model=None,
+                        openai_judge_model=openai_judge_model,
                     )
                     metric_artifacts.append(metric_artifact)
             else:
@@ -176,7 +179,7 @@ def main() -> int:
                     spec,
                     run_root=str(output_root),
                     limit=args.limit,
-                    openai_judge_model=None,
+                    openai_judge_model=openai_judge_model,
                 )
                 metric_artifacts.append(metric_artifact)
             availability[benchmark_name] = {"status": "ok", "note": None}

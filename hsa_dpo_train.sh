@@ -20,6 +20,8 @@ fi
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EPOCH="${EPOCH:-2}"
 LEARNING_RATE="${LEARNING_RATE:-2e-6}"
+TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-32}"
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-}"
 USE_CHOSEN_SCORE="${USE_CHOSEN_SCORE:-False}"
 USE_REJECTED_SCORE="${USE_REJECTED_SCORE:-True}"
 DPO_LOSS_TYPE="${DPO_LOSS_TYPE:-hsa_weighted}"
@@ -64,6 +66,27 @@ if [ "${NUM_GPUS}" -gt "${AVAILABLE_GPUS}" ]; then
     NUM_GPUS="${AVAILABLE_GPUS}"
 fi
 
+PER_STEP_BATCH=$((BATCH_SIZE * NUM_GPUS))
+if [ "${PER_STEP_BATCH}" -le 0 ]; then
+    echo "Invalid batch configuration: BATCH_SIZE=${BATCH_SIZE}, NUM_GPUS=${NUM_GPUS}" >&2
+    exit 1
+fi
+
+if [ -z "${GRADIENT_ACCUMULATION_STEPS}" ]; then
+    GRADIENT_ACCUMULATION_STEPS=$(((TOTAL_BATCH_SIZE + PER_STEP_BATCH - 1) / PER_STEP_BATCH))
+fi
+
+if [ "${GRADIENT_ACCUMULATION_STEPS}" -le 0 ]; then
+    echo "Invalid GRADIENT_ACCUMULATION_STEPS=${GRADIENT_ACCUMULATION_STEPS}" >&2
+    exit 1
+fi
+
+EFFECTIVE_TOTAL_BATCH=$((PER_STEP_BATCH * GRADIENT_ACCUMULATION_STEPS))
+if [ "${EFFECTIVE_TOTAL_BATCH}" -ne "${TOTAL_BATCH_SIZE}" ]; then
+    echo "Warning: effective total batch size ${EFFECTIVE_TOTAL_BATCH} differs from target TOTAL_BATCH_SIZE=${TOTAL_BATCH_SIZE}." >&2
+    echo "Set BATCH_SIZE, NUM_GPUS, or GRADIENT_ACCUMULATION_STEPS if you need an exact total batch." >&2
+fi
+
 # Training script entry point
 ENTRY="${ENTRY:-${REPO_ROOT}/hsa_dpo/models/llava-v1_5/train_dpo.py}"
 LLAVA_ROOT="${REPO_ROOT}/hsa_dpo/models/llava-v1_5"
@@ -100,6 +123,9 @@ echo "Image folder: ${IMAGE_FOLDER}"
 echo "Model path: ${MODEL_PATH}"
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Using ${NUM_GPUS} GPUs"
+echo "Per-device train batch size: ${BATCH_SIZE}"
+echo "Gradient accumulation steps: ${GRADIENT_ACCUMULATION_STEPS}"
+echo "Effective total batch size: ${EFFECTIVE_TOTAL_BATCH}"
 echo "Chosen score weighting: ${USE_CHOSEN_SCORE}"
 echo "Rejected score weighting: ${USE_REJECTED_SCORE}"
 echo "DPO loss type: ${DPO_LOSS_TYPE}"
@@ -127,7 +153,7 @@ deepspeed --num_gpus="${NUM_GPUS}" "${ENTRY}" \
     --num_train_epochs "${EPOCH}" \
     --per_device_train_batch_size "${BATCH_SIZE}" \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps "${GRADIENT_ACCUMULATION_STEPS}" \
     --evaluation_strategy "no" \
     --save_strategy "epoch" \
     --save_total_limit 2 \

@@ -176,7 +176,9 @@ OPENAI_MODEL=gpt-4o-mini
 LLAVA_DEVICE=cuda:0
 NUM_GPUS=1
 BATCH_SIZE=1
-EPOCH=1
+TOTAL_BATCH_SIZE=32
+EPOCH=2
+LEARNING_RATE=2e-6
 ```
 
 The Stage 2, Stage 3, Stage 4, Stage 5, and pilot-train launchers now load this file
@@ -275,7 +277,10 @@ bash scripts/run_stage5_train.sh
 ```
 
 This uses `output/fghd/stage4/final_preference_pairs.jsonl` as the training data
-and writes checkpoints under `output/fghd/stage5_llava_margin`.
+and writes checkpoints under `output/fghd/stage5_llava_margin`. The default
+Stage 5 wrapper is paper-aligned: 2 epochs, LR `2e-6`, LoRA `r=128`,
+LoRA alpha `256`, beta `0.1`, frozen projector, and total batch size `32`
+through gradient accumulation.
 
 For a baseline-only reproduction run, use the released preference data
 directly:
@@ -312,6 +317,7 @@ On the remote instance, after the bootstrap script and model download:
 
 ```bash
 source .venv/bin/activate
+bash scripts/vastai/install_eval_benchmarks.sh
 bash scripts/run_paper_eval.sh
 bash scripts/run_general_eval.sh
 ```
@@ -320,6 +326,8 @@ bash scripts/run_general_eval.sh
 only by default. `run_general_eval.sh` writes general runtime summaries plus a
 separate supplemental local-eval report. Proxy or judge-like benchmarks that
 are not yet paper-faithful are intentionally kept out of the strict paper table.
+The installer prepares dependencies and folder layout; you still need to place
+the paper-matching benchmark assets under `playground/data/eval/`.
 
 ## 10. Minimal Workflow Summary
 

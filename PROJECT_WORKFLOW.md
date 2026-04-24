@@ -340,6 +340,10 @@ bash scripts/run_stage5_train.sh
 
 This points the trainer at `output/fghd/stage4/final_preference_pairs.jsonl`
 and writes checkpoints under `output/fghd/stage5_llava_margin/`.
+The default Stage 5 launcher follows the paper hyperparameters: 2 epochs,
+LoRA rank 128, LoRA alpha 256, learning rate `2e-6`, total batch size 32,
+DPO beta 0.1, and frozen projector. On a one-GPU box it reaches total batch
+32 by using gradient accumulation.
 
 The legacy `scripts/run_stage4_train.sh` wrapper still points the unchanged
 trainer at `output/fghd/stage3/preference_pairs.jsonl`; use it only for the
@@ -364,18 +368,18 @@ Relevant knobs exposed by the script:
 - `USE_REJECTED_SCORE` (default `True`; this is what reproduces the paper's severity-weighted rejected term)
 - `DPO_LOSS_TYPE` (`hsa_weighted`, `severity_margin`, or `standard`)
 - `SEVERITY_MARGIN_SCALE`, `SEVERITY_SCORE_NORMALIZER`
-- `BATCH_SIZE`, `EPOCH`, `LEARNING_RATE`, `NUM_GPUS`
+- `BATCH_SIZE`, `TOTAL_BATCH_SIZE`, `GRADIENT_ACCUMULATION_STEPS`, `EPOCH`, `LEARNING_RATE`, `NUM_GPUS`
 
-For a `1x RTX 6000 Ada (48 GB)` Vast instance, treat Stage 5 as a pilot run
-first. Use:
+For a `1x RTX 6000 Ada (48 GB)` Vast instance, use the paper-fair Stage 5
+wrapper after Stage 4 is complete:
 
 ```bash
-bash scripts/vastai/run_pilot_train.sh
+bash scripts/run_stage5_train.sh
 ```
 
-That wrapper defaults to `NUM_GPUS=1`, `BATCH_SIZE=1`, and `EPOCH=1`. Move to a
-larger or multi-GPU box only after the pilot run proves that the environment,
-data paths, and trainer wiring are correct.
+It defaults to `NUM_GPUS=1`, `BATCH_SIZE=1`, `TOTAL_BATCH_SIZE=32`, and
+`EPOCH=2`. Use `bash scripts/vastai/run_pilot_train.sh` only for a short
+environment sanity check, not for the final paper-comparison run.
 
 Current data limitation:
 
@@ -414,6 +418,12 @@ Strict paper comparison is local-only. It validates the manifest and requires:
 The strict runner is only as fair as the benchmark adapter behind each row.
 Keep strict paper comparison separate from supplemental rows, and do not treat
 skipped local-judge benchmarks as missing paper deltas.
+Run `bash scripts/vastai/install_eval_benchmarks.sh` on Vast to install the
+evaluation extra and create the benchmark folder layout. Benchmark data itself
+must still be placed under `playground/data/eval/` from the matching sources.
+Supplemental judge benchmarks can use `OPENAI_JUDGE_MODEL` or
+`--openai-judge-model`, but those rows remain outside the strict table unless
+the adapter marks them paper-faithful.
 
 ## Vast AI Notes
 

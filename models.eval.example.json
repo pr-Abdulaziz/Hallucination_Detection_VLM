@@ -1,0 +1,22 @@
+[
+  {
+    "model_id": "llava15_base_13b",
+    "model_path": "models/llava-v1.5-13b",
+    "model_base": null,
+    "kind": "base",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  },
+  {
+    "model_id": "ours_stage5_lora",
+    "model_path": "output/fghd/stage5_llava_margin",
+    "model_base": "models/llava-v1.5-13b",
+    "kind": "lora",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  }
+]
