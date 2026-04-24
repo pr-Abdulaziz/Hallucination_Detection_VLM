@@ -7,10 +7,26 @@ cd "${REPO_ROOT}"
 
 VAST_LOCAL_ENV="${REPO_ROOT}/scripts/vastai/defaults.local.env"
 if [ -f "${VAST_LOCAL_ENV}" ]; then
+  _VAST_OVERRIDE_KEYS=(
+    STAGE4_INPUT STAGE3_PREFERENCES STAGE4_OUTPUT_DIR STAGE4_OUTPUT
+    REPAIR_PREFERENCES_OUT FINAL_PREFERENCES_OUT STAGE4_STATS_OUT
+    STAGE4_BACKEND MODEL_PATH MODEL_BASE CONV_MODE IMAGE_ROOT
+    STAGE4_MAX_NEW_TOKENS STAGE4_TEMPERATURE RESUME LIMIT STRICT
+  )
+  _VAST_OVERRIDES=()
+  for _key in "${_VAST_OVERRIDE_KEYS[@]}"; do
+    if [ "${!_key+x}" = "x" ]; then
+      _VAST_OVERRIDES+=("${_key}=${!_key}")
+    fi
+  done
   set -a
   # shellcheck disable=SC1090
   source "${VAST_LOCAL_ENV}"
   set +a
+  for _assignment in "${_VAST_OVERRIDES[@]}"; do
+    export "${_assignment}"
+  done
+  unset _VAST_OVERRIDE_KEYS _VAST_OVERRIDES _key _assignment
 fi
 
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "${REPO_ROOT}/.venv/bin/activate" ]; then

@@ -6,11 +6,41 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 VAST_LOCAL_ENV="${REPO_ROOT}/scripts/vastai/defaults.local.env"
+_BACKEND_EXPLICIT=0
+_ROW_WORKERS_EXPLICIT=0
+if [ "${BACKEND+x}" = "x" ]; then
+  _BACKEND_EXPLICIT=1
+fi
+if [ "${ROW_WORKERS+x}" = "x" ]; then
+  _ROW_WORKERS_EXPLICIT=1
+fi
 if [ -f "${VAST_LOCAL_ENV}" ]; then
+  _VAST_OVERRIDE_KEYS=(
+    INPUT OUTPUT_DIR OUTPUT PREFERENCES_OUT STATS_OUT BACKEND
+    LLAVA_MODEL_PATH LLAVA_MODEL_BASE LLAVA_CONV_MODE IMAGE_ROOT
+    LLAVA_MAX_NEW_TOKENS GEMINI_MODEL GEMINI_MAX_OUTPUT_TOKENS
+    ROW_WORKERS LLAVA_DEVICE RESUME CHECKPOINT_EVERY LIMIT STRICT
+    GEMINI_API_KEY GOOGLE_API_KEY
+  )
+  _VAST_OVERRIDES=()
+  for _key in "${_VAST_OVERRIDE_KEYS[@]}"; do
+    if [ "${!_key+x}" = "x" ]; then
+      _VAST_OVERRIDES+=("${_key}=${!_key}")
+      if [ "${_key}" = "BACKEND" ]; then
+        _BACKEND_EXPLICIT=1
+      elif [ "${_key}" = "ROW_WORKERS" ]; then
+        _ROW_WORKERS_EXPLICIT=1
+      fi
+    fi
+  done
   set -a
   # shellcheck disable=SC1090
   source "${VAST_LOCAL_ENV}"
   set +a
+  for _assignment in "${_VAST_OVERRIDES[@]}"; do
+    export "${_assignment}"
+  done
+  unset _VAST_OVERRIDE_KEYS _VAST_OVERRIDES _key _assignment
 fi
 
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "${REPO_ROOT}/.venv/bin/activate" ]; then
@@ -36,12 +66,16 @@ LLAVA_DEVICE="${LLAVA_DEVICE:-}"
 RESUME="${RESUME:-0}"
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-50}"
 
-if [ "${BACKEND}" = "heuristic" ] && [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ]; then
+if [ "${BACKEND}" = "heuristic" ] && [ "${_BACKEND_EXPLICIT}" != "1" ] && [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ]; then
   BACKEND="gemini_two_vote"
 fi
 
-if [ "${BACKEND}" = "gemini_two_vote" ] && [ "${ROW_WORKERS}" = "1" ]; then
+if [ "${BACKEND}" = "gemini_two_vote" ] && [ "${ROW_WORKERS}" = "1" ] && [ "${_ROW_WORKERS_EXPLICIT}" != "1" ]; then
   ROW_WORKERS=4
+fi
+
+if [ "${BACKEND}" = "heuristic" ] && [ "${ROW_WORKERS}" != "1" ] && [ "${_ROW_WORKERS_EXPLICIT}" != "1" ]; then
+  ROW_WORKERS=1
 fi
 
 if [ "${BACKEND}" = "gemini_llava_two_vote" ] && [ -z "${LLAVA_DEVICE}" ]; then
@@ -52,6 +86,8 @@ if [ "${BACKEND}" = "gemini_llava_two_vote" ] && [ -z "${LLAVA_DEVICE}" ]; then
     fi
   fi
 fi
+
+unset _BACKEND_EXPLICIT _ROW_WORKERS_EXPLICIT
 
 if [ ! -f "${INPUT}" ]; then
   echo "Stage 3 input not found: ${INPUT}" >&2
