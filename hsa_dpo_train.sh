@@ -22,6 +22,7 @@ EPOCH="${EPOCH:-2}"
 LEARNING_RATE="${LEARNING_RATE:-2e-6}"
 TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-32}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-}"
+MAX_STEPS="${MAX_STEPS:--1}"
 USE_CHOSEN_SCORE="${USE_CHOSEN_SCORE:-False}"
 USE_REJECTED_SCORE="${USE_REJECTED_SCORE:-True}"
 DPO_LOSS_TYPE="${DPO_LOSS_TYPE:-hsa_weighted}"
@@ -126,6 +127,7 @@ echo "Using ${NUM_GPUS} GPUs"
 echo "Per-device train batch size: ${BATCH_SIZE}"
 echo "Gradient accumulation steps: ${GRADIENT_ACCUMULATION_STEPS}"
 echo "Effective total batch size: ${EFFECTIVE_TOTAL_BATCH}"
+echo "Max steps: ${MAX_STEPS}"
 echo "Chosen score weighting: ${USE_CHOSEN_SCORE}"
 echo "Rejected score weighting: ${USE_REJECTED_SCORE}"
 echo "DPO loss type: ${DPO_LOSS_TYPE}"
@@ -151,6 +153,7 @@ deepspeed --num_gpus="${NUM_GPUS}" "${ENTRY}" \
     --bf16 True \
     --output_dir "${OUTPUT_DIR}" \
     --num_train_epochs "${EPOCH}" \
+    --max_steps "${MAX_STEPS}" \
     --per_device_train_batch_size "${BATCH_SIZE}" \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps "${GRADIENT_ACCUMULATION_STEPS}" \

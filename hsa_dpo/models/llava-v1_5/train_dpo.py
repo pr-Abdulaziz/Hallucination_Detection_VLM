@@ -827,6 +827,21 @@ def main():
         max_length=script_args.max_length,
         **data_module,
     )
+
+    if script_args.deepspeed and script_args.gradient_accumulation_steps > 1:
+        gradient_state = getattr(dpo_trainer.accelerator, "gradient_state", None)
+        plugin_kwargs = getattr(gradient_state, "plugin_kwargs", None)
+        if isinstance(plugin_kwargs, dict):
+            plugin_kwargs["sync_each_batch"] = True
+            print(
+                "Enabled Accelerate sync_each_batch for DeepSpeed gradient "
+                "accumulation; this avoids ZeRO-3 no_sync incompatibility."
+            )
+        else:
+            print(
+                "Warning: could not enable Accelerate sync_each_batch; "
+                "DeepSpeed ZeRO-3 may fail with gradient accumulation."
+            )
     
     # dpo_trainer.add_callback(SaverCallback())
     
