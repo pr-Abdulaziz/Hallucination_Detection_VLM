@@ -16,17 +16,14 @@ from fg_pipeline.stage1.schemas import CritiqueItem
 from fg_pipeline.stage2.schemas import Stage2Record
 from fg_pipeline.stage3 import (
     APPROVALS_REQUIRED,
-    ENSEMBLE_VOTE_POLICY_VERSION,
     GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION,
     GEMINI_TWO_VOTE_POLICY_VERSION,
     GeminiLlavaTwoVoteBackend,
     GeminiTwoVoteBackend,
     HeuristicVerificationBackend,
-    QwenLlavaEnsembleBackend,
     Stage3Record,
     VOTE_COUNT,
     VoteDecision,
-    evaluate_votes,
     get_backend,
 )
 from fg_pipeline.stage3.backends import VerificationError
@@ -214,48 +211,9 @@ class BackendRegistryTests(unittest.TestCase):
         backend = get_backend("heuristic")
         self.assertIsInstance(backend, HeuristicVerificationBackend)
 
-    def test_get_backend_ensemble_requires_model_paths(self) -> None:
-        with self.assertRaises(ValueError):
-            get_backend("qwen_llava_ensemble")
-
     def test_unknown_backend_raises(self) -> None:
         with self.assertRaises(ValueError):
             get_backend("not_a_backend")
-
-    def test_get_backend_ensemble_fails_fast_when_qwen_deps_missing(self) -> None:
-        real_find_spec = __import__("importlib.util").util.find_spec
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_dir = Path(tmp)
-            qwen_dir = tmp_dir / "qwen"
-            llava_dir = tmp_dir / "llava"
-            qwen_dir.mkdir()
-            llava_dir.mkdir()
-
-            def fake_find_spec(name: str, package=None):
-                if name in {"tiktoken", "matplotlib", "transformers_stream_generator"}:
-                    return None
-                return real_find_spec(name, package)
-
-            with mock.patch("fg_pipeline.stage3.backends.importlib.util.find_spec", side_effect=fake_find_spec):
-                with self.assertRaises(ImportError):
-                    get_backend(
-                        "qwen_llava_ensemble",
-                        qwen_model_path=str(qwen_dir),
-                        llava_model_path=str(llava_dir),
-                    )
-
-    def test_get_backend_ensemble_fails_fast_when_model_path_missing(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_dir = Path(tmp)
-            qwen_dir = tmp_dir / "qwen"
-            qwen_dir.mkdir()
-            with mock.patch("fg_pipeline.stage3.backends.importlib.util.find_spec", return_value=object()):
-                with self.assertRaises(FileNotFoundError):
-                    get_backend(
-                        "qwen_llava_ensemble",
-                        qwen_model_path=str(qwen_dir),
-                        llava_model_path=str(tmp_dir / "missing-llava"),
-                    )
 
 
 class JudgeParsingTests(unittest.TestCase):
@@ -302,170 +260,6 @@ class PromptTests(unittest.TestCase):
         self.assertNotIn('"approved": false', prompt)
         self.assertNotIn("short reason", prompt)
         self.assertIn("do not use placeholder text", prompt)
-
-
-class QwenRuntimeTests(unittest.TestCase):
-    class _FakeTokenizer:
-        def from_list_format(self, payload) -> str:
-            return str(payload)
-
-    class _FakeGenerationConfig:
-        def __init__(self) -> None:
-            self.max_new_tokens = 999
-            self.do_sample = True
-            self.temperature = 0.7
-            self.num_beams = 4
-
-    class _FakeChatModel:
-        def __init__(self) -> None:
-            self.generation_config = QwenRuntimeTests._FakeGenerationConfig()
-            self.last_call: dict | None = None
-
-        def chat(self, tokenizer, *, query, history, append_history, generation_config):
-            self.last_call = {
-                "query": query,
-                "history": history,
-                "append_history": append_history,
-                "generation_config": generation_config,
-            }
-            return '{"approved": true, "reason": "ok"}', []
-
-    def test_chat_path_uses_capped_generation_config(self) -> None:
-        runtime = stage3_backends._QwenJudgeRuntime("models/qwen", max_new_tokens=64, temperature=0.0)
-        tokenizer = self._FakeTokenizer()
-        model = self._FakeChatModel()
-
-        with mock.patch.object(runtime, "_load", return_value=(tokenizer, model)):
-            with mock.patch.object(runtime, "_resolved_image", return_value=None):
-                response = runtime.judge(_make_stage2_record().to_dict(), "hallucination_removal")
-
-        self.assertEqual(response, '{"approved": true, "reason": "ok"}')
-        self.assertIsNotNone(model.last_call)
-        generation_config = model.last_call["generation_config"]
-        self.assertEqual(generation_config.max_new_tokens, 64)
-        self.assertFalse(generation_config.do_sample)
-        self.assertEqual(generation_config.temperature, 0.0)
-        self.assertEqual(generation_config.num_beams, 1)
-        self.assertFalse(model.last_call["append_history"])
-
-
-class EnsembleBackendTests(unittest.TestCase):
-    class _FakeRuntime:
-        def __init__(self, responses: dict[str, str]) -> None:
-            self.responses = responses
-
-        def judge(self, record, criterion: str) -> str:
-            return self.responses[criterion]
-
-    @staticmethod
-    def _response(approved: bool, reason: str) -> str:
-        return json.dumps({"approved": approved, "reason": reason})
-
-    def _backend_for_outcomes(self, vote1: bool, vote2: bool, vote3: bool) -> QwenLlavaEnsembleBackend:
-        return QwenLlavaEnsembleBackend(
-            qwen_model_path="models/qwen",
-            llava_model_path="models/llava",
-            qwen_runtime=self._FakeRuntime(
-                {
-                    "hallucination_removal": self._response(vote1, "qwen-one"),
-                    "overall_preference": self._response(vote3, "qwen-three"),
-                }
-            ),
-            llava_runtime=self._FakeRuntime(
-                {"content_preservation": self._response(vote2, "llava-two")}
-            ),
-        )
-
-    def test_ensemble_vote_assigns_expected_families(self) -> None:
-        backend = self._backend_for_outcomes(True, True, True)
-        record = _make_stage2_record().to_dict()
-        vote1 = backend.vote(record, vote_index=1)
-        vote2 = backend.vote(record, vote_index=2)
-        vote3 = backend.vote(record, vote_index=3)
-        self.assertEqual(vote1.model_family, "qwen")
-        self.assertEqual(vote2.model_family, "llava")
-        self.assertEqual(vote3.model_family, "qwen")
-
-    def test_cross_family_requirement_blocks_two_qwen_approvals(self) -> None:
-        backend = self._backend_for_outcomes(True, False, True)
-        votes = [
-            backend.vote(_make_stage2_record().to_dict(), vote_index=1),
-            backend.vote(_make_stage2_record().to_dict(), vote_index=2),
-            backend.vote(_make_stage2_record().to_dict(), vote_index=3),
-        ]
-        passed, meta = evaluate_votes(backend, votes)
-        self.assertFalse(passed)
-        self.assertFalse(meta["cross_family_approval_ok"])
-        self.assertEqual(meta["approved_families"], ["qwen"])
-
-    def test_cross_family_requirement_passes_with_qwen_and_llava(self) -> None:
-        backend = self._backend_for_outcomes(True, True, False)
-        good = _make_stage2_record().to_dict()
-        audit_rows, pref_rows, stats = stage3_run._process_rows(
-            backend,
-            [good],
-            strict=False,
-            limit=None,
-        )
-        self.assertEqual(len(audit_rows), 1)
-        self.assertEqual(len(pref_rows), 1)
-        self.assertEqual(stats.vote_policy_version, ENSEMBLE_VOTE_POLICY_VERSION)
-        self.assertEqual(stats.approval_families_required, ["qwen", "llava"])
-        self.assertTrue(audit_rows[0]["metadata"]["cross_family_approval_ok"])
-        self.assertEqual(audit_rows[0]["metadata"]["approved_families"], ["llava", "qwen"])
-        self.assertEqual(pref_rows[0]["metadata"]["approved_families"], ["llava", "qwen"])
-
-    def test_early_stop_when_first_two_votes_pass(self) -> None:
-        backend = self._backend_for_outcomes(True, True, False)
-        audit_rows, pref_rows, _ = stage3_run._process_rows(
-            backend,
-            [_make_stage2_record().to_dict()],
-            strict=False,
-            limit=None,
-        )
-        self.assertEqual(len(audit_rows[0]["votes"]), 2)
-        self.assertTrue(audit_rows[0]["metadata"]["early_stop_applied"])
-        self.assertTrue(audit_rows[0]["passed_majority"])
-        self.assertEqual(len(pref_rows), 1)
-
-    def test_early_stop_when_second_vote_blocks_cross_family_pass(self) -> None:
-        backend = self._backend_for_outcomes(True, False, True)
-        audit_rows, pref_rows, _ = stage3_run._process_rows(
-            backend,
-            [_make_stage2_record().to_dict()],
-            strict=False,
-            limit=None,
-        )
-        self.assertEqual(len(audit_rows[0]["votes"]), 2)
-        self.assertTrue(audit_rows[0]["metadata"]["early_stop_applied"])
-        self.assertFalse(audit_rows[0]["passed_majority"])
-        self.assertEqual(pref_rows, [])
-
-    def test_early_stop_when_first_two_votes_fail(self) -> None:
-        backend = self._backend_for_outcomes(False, False, True)
-        audit_rows, pref_rows, _ = stage3_run._process_rows(
-            backend,
-            [_make_stage2_record().to_dict()],
-            strict=False,
-            limit=None,
-        )
-        self.assertEqual(len(audit_rows[0]["votes"]), 2)
-        self.assertTrue(audit_rows[0]["metadata"]["early_stop_applied"])
-        self.assertFalse(audit_rows[0]["passed_majority"])
-        self.assertEqual(pref_rows, [])
-
-    def test_third_vote_runs_only_for_split_first_two_votes(self) -> None:
-        backend = self._backend_for_outcomes(False, True, True)
-        audit_rows, pref_rows, _ = stage3_run._process_rows(
-            backend,
-            [_make_stage2_record().to_dict()],
-            strict=False,
-            limit=None,
-        )
-        self.assertEqual(len(audit_rows[0]["votes"]), 3)
-        self.assertFalse(audit_rows[0]["metadata"]["early_stop_applied"])
-        self.assertTrue(audit_rows[0]["passed_majority"])
-        self.assertEqual(len(pref_rows), 1)
 
 
 class GeminiLlavaTwoVoteBackendTests(unittest.TestCase):

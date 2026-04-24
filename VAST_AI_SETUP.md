@@ -169,10 +169,9 @@ example:
 
 ```bash
 MODEL_PATH=models/llava-v1.5-13b
-QWEN_MODEL_PATH=models/Qwen-VL-Chat
 LLAVA_MODEL_PATH=models/llava-v1.5-13b
-QWEN_DEVICE=cuda:0
-LLAVA_DEVICE=cuda:1
+BACKEND=gemini_two_vote
+LLAVA_DEVICE=cuda:0
 NUM_GPUS=1
 BATCH_SIZE=1
 EPOCH=1
@@ -228,11 +227,19 @@ Use the real rewrite backend on a GPU box with:
 BACKEND=llava MODEL_PATH=models/llava-v1.5-13b bash scripts/run_stage2_rewrites.sh
 ```
 
-For the local research Stage 3 backend on a real GPU box:
+For the fastest research Stage 3 backend:
 
 ```bash
-QWEN_MODEL_PATH=models/Qwen-VL-Chat \
+BACKEND=gemini_two_vote \
+bash scripts/run_stage3_validate.sh
+```
+
+For a Gemini + local LLaVA validation run:
+
+```bash
+BACKEND=gemini_llava_two_vote \
 LLAVA_MODEL_PATH=models/llava-v1.5-13b \
+LLAVA_DEVICE=cuda:0 \
 bash scripts/run_stage3_validate.sh
 ```
 
@@ -324,9 +331,9 @@ are not yet paper-faithful are intentionally kept out of the strict paper table.
    `BACKEND=llava MODEL_PATH=models/llava-v1.5-13b` for the real rewrite
    backend (the default `template` backend works without a model)
 6. optionally run `bash scripts/run_stage3_validate.sh` to build clean
-   preference pairs from the Stage 2 rewrites; if `QWEN_MODEL_PATH` and
-   `LLAVA_MODEL_PATH` are set, the launcher prefers the local Qwen+LLaVA
-   ensemble backend automatically
+   preference pairs from the Stage 2 rewrites; if `GEMINI_API_KEY` or
+   `GOOGLE_API_KEY` is set, the launcher prefers `gemini_two_vote`
+   automatically
 7. run `bash scripts/run_stage4_train.sh` on a 2-GPU box for the redesigned
    pipeline, or `bash hsa_dpo_train.sh` for a baseline-only reproduction
 8. optionally run `bash scripts/run_paper_eval.sh` / `bash scripts/run_general_eval.sh`

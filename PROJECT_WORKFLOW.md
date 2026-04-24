@@ -32,13 +32,10 @@ For the full research method, see [README.md](README.md).
   `RewriteBackend` protocol is exposed so other backends can be plugged
   in without changing the Stage 2 output schema.
 - **Stage 3 is implemented** as `fg_pipeline/stage3/`. It consumes Stage
-  2 rewrites, runs 3 verification votes per row, keeps pairs only when
-  at least 2 approve, writes a Stage 3 audit artifact, and exports
-  trainer-compatible preference pairs. The default
-  `HeuristicVerificationBackend` is deterministic and smoke-oriented; the
-  local research backend is now `qwen_llava_ensemble`, which requires at
-  least one approved Qwen vote and one approved LLaVA vote in addition to
-  the usual 2-of-3 approval rule.
+  2 rewrites, runs verification votes per row, writes a Stage 3 audit
+  artifact, and exports trainer-compatible preference pairs. The default
+  `HeuristicVerificationBackend` is deterministic and smoke-oriented; research
+  runs use `gemini_two_vote` or `gemini_llava_two_vote`.
 - **Stage 4 keeps the released HSA-DPO baseline trainer.**
   `scripts/run_stage4_train.sh` now wraps `hsa_dpo_train.sh` so the new
   Stage 3 preference pairs can flow into the unchanged trainer path.
@@ -146,7 +143,7 @@ The repo has two layers.
 - Stage 2 — Critique-guided rewrite
   *(implemented; template backend is smoke-only; LLaVA backend is the research path)*
 - Stage 3 — Majority-vote preference validation
-  *(implemented; heuristic backend is smoke-only, Qwen+LLaVA ensemble is the local research path)*
+  *(implemented; heuristic backend is smoke-only, Gemini and Gemini+LLaVA are the research paths)*
 - Stage 4 — Severity-aware DPO
   *(implemented via `scripts/run_stage4_train.sh` -> `hsa_dpo_train.sh`)*
 
@@ -261,37 +258,41 @@ python -m fg_pipeline.stage3.run_stage3 \
   --stats-out output/fghd/stage3/stats.json
 ```
 
-Useful flags: `--backend heuristic` (smoke default), `--limit N` for smoke
-runs, `--strict` to fail on malformed Stage 2 rows.
+Useful flags: `--backend heuristic|gemini_two_vote|gemini_llava_two_vote`
+(heuristic is smoke-only), `--limit N` for smoke runs, `--strict` to fail on
+malformed Stage 2 rows, `--resume`, and `--checkpoint-every`.
 
-For the local research backend:
+For the fastest research backend:
 
 ```bash
-QWEN_MODEL_PATH=models/Qwen-VL-Chat \
+BACKEND=gemini_two_vote \
+bash scripts/run_stage3_validate.sh
+```
+
+For a cross-family Gemini + LLaVA run:
+
+```bash
+BACKEND=gemini_llava_two_vote \
 LLAVA_MODEL_PATH=models/llava-v1.5-13b \
+LLAVA_DEVICE=cuda:0 \
 bash scripts/run_stage3_validate.sh
 ```
 
 Stage 3 writes:
 
-- `output/fghd/stage3/vote_records.jsonl` — audit rows with 3 votes per rewrite
+- `output/fghd/stage3/vote_records.jsonl` — audit rows with verification votes per rewrite
 - `output/fghd/stage3/preference_pairs.jsonl` — trainer-compatible preference pairs
 - `output/fghd/stage3/stats.json` — compact validation counts
 
-Only rows with at least 2 approvals are kept for Stage 4.
+Only rows approved by the selected backend are kept for Stage 4.
 
 Before launching Stage 4 on a long run, inspect:
 
 - `output/fghd/stage3/stats.json`
 - a small sample of `output/fghd/stage3/preference_pairs.jsonl`
 
-The current smoke default is heuristic. The local research path is the
-`qwen_llava_ensemble` backend, which enforces both 2-of-3 approval and
-cross-family approval coverage.
-
-If you do not have a local Qwen checkpoint on the Vast box yet, keep Stage 3 on
-the heuristic backend for bring-up and only switch to the ensemble after both
-model paths are present and a small smoke sample looks sane.
+The current smoke default is heuristic. With `GEMINI_API_KEY` or
+`GOOGLE_API_KEY` set, the launcher automatically selects `gemini_two_vote`.
 
 ### Stage 4 training (severity-aware DPO)
 

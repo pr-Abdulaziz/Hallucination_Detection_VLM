@@ -1,8 +1,8 @@
-"""Stage 3 — majority-vote preference validation.
+"""Stage 3 — preference validation.
 
 This package consumes Stage 2 rewrite JSONL and emits:
 
-- a Stage 3 audit JSONL with 3 verification votes per candidate, and
+- a Stage 3 audit JSONL with verification votes per candidate, and
 - a clean preference JSONL compatible with the existing Stage 4 trainer.
 
 The default backend is a deterministic heuristic verifier suitable for local
@@ -15,12 +15,10 @@ from fg_pipeline.stage3.backends import (
     HeuristicVerificationBackend,
     GeminiLlavaTwoVoteBackend,
     GeminiTwoVoteBackend,
-    QwenLlavaEnsembleBackend,
     VerificationBackend,
     VerificationError,
     VOTE_COUNT,
     APPROVALS_REQUIRED,
-    ENSEMBLE_VOTE_POLICY_VERSION,
     GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION,
     GEMINI_TWO_VOTE_POLICY_VERSION,
     VOTE_POLICY_VERSION,
@@ -36,10 +34,8 @@ __all__ = [
     "HeuristicVerificationBackend",
     "GeminiLlavaTwoVoteBackend",
     "GeminiTwoVoteBackend",
-    "QwenLlavaEnsembleBackend",
     "VOTE_COUNT",
     "APPROVALS_REQUIRED",
-    "ENSEMBLE_VOTE_POLICY_VERSION",
     "GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION",
     "GEMINI_TWO_VOTE_POLICY_VERSION",
     "VOTE_POLICY_VERSION",

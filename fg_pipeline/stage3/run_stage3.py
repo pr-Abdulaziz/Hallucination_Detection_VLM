@@ -1,7 +1,7 @@
-"""Stage 3 CLI — majority-vote preference validation.
+"""Stage 3 CLI — preference validation.
 
-Reads Stage 2 JSONL, runs three verification votes per hallucinated rewrite,
-writes an audit JSONL, and exports a clean trainer-compatible preference JSONL.
+Reads Stage 2 JSONL, runs verification votes per hallucinated rewrite, writes
+an audit JSONL, and exports a clean trainer-compatible preference JSONL.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from fg_pipeline.paths import (
 from fg_pipeline.schemas import PreferenceCleanRecord
 from fg_pipeline.stage3.backends import (
     APPROVALS_REQUIRED,
-    ENSEMBLE_VOTE_POLICY_VERSION,
     VOTE_COUNT,
     VerificationError,
     evaluate_votes,
@@ -111,16 +110,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Concurrent row workers for hosted/stateless Stage 3 backends.",
     )
     parser.add_argument(
-        "--qwen-model-path",
-        type=str,
-        default=None,
-        help="Local Qwen-VL-Chat path for the qwen_llava_ensemble backend.",
-    )
-    parser.add_argument(
         "--llava-model-path",
         type=str,
         default=None,
-        help="Local LLaVA path for the qwen_llava_ensemble backend.",
+        help="Local LLaVA path for the gemini_llava_two_vote backend.",
     )
     parser.add_argument(
         "--llava-model-base",
@@ -141,12 +134,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Root directory used to resolve relative image paths for local judges.",
     )
     parser.add_argument(
-        "--qwen-max-new-tokens",
-        type=int,
-        default=64,
-        help="Max tokens for each Qwen judge vote.",
-    )
-    parser.add_argument(
         "--llava-max-new-tokens",
         type=int,
         default=64,
@@ -165,16 +152,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Max output tokens for each Gemini judge vote.",
     )
     parser.add_argument(
-        "--qwen-device",
-        type=str,
-        default=None,
-        help="Optional device for Qwen judge, e.g. cuda:0.",
-    )
-    parser.add_argument(
         "--llava-device",
         type=str,
         default=None,
-        help="Optional device for LLaVA judge, e.g. cuda:1.",
+        help="Optional device for LLaVA judge, e.g. cuda:0.",
     )
     return parser
 
@@ -249,19 +230,6 @@ def _validation_warnings(row: dict[str, Any]) -> list[str]:
     return warnings
 
 
-def _should_stop_early(backend: Any, votes: list[VoteDecision]) -> bool:
-    if getattr(backend, "name", "") != "qwen_llava_ensemble":
-        return False
-    if len(votes) != 2:
-        return False
-    pair = (votes[0].approved, votes[1].approved)
-    return pair in {
-        (True, True),
-        (True, False),
-        (False, False),
-    }
-
-
 def _build_votes(backend: Any, row: dict[str, Any], *, strict: bool) -> tuple[list[VoteDecision], bool]:
     if getattr(backend, "name", "") in {"gemini_llava_two_vote", "gemini_two_vote"}:
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -275,9 +243,6 @@ def _build_votes(backend: Any, row: dict[str, Any], *, strict: bool) -> tuple[li
     early_stop_applied = False
     for vote_index in range(1, _backend_vote_count(backend) + 1):
         votes.append(backend.vote(row, vote_index=vote_index, strict=strict))
-        if _should_stop_early(backend, votes):
-            early_stop_applied = True
-            break
     return votes, early_stop_applied
 
 
@@ -547,16 +512,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         backend = get_backend(
             args.backend,
-            qwen_model_path=args.qwen_model_path,
             llava_model_path=args.llava_model_path,
             llava_model_base=args.llava_model_base,
             llava_conv_mode=args.llava_conv_mode,
             image_root=args.image_root,
-            qwen_max_new_tokens=args.qwen_max_new_tokens,
             llava_max_new_tokens=args.llava_max_new_tokens,
             gemini_model=args.gemini_model,
             gemini_max_output_tokens=args.gemini_max_output_tokens,
-            qwen_device=args.qwen_device,
             llava_device=args.llava_device,
         )
     except (ImportError, FileNotFoundError, ValueError) as exc:

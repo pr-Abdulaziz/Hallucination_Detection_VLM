@@ -46,7 +46,7 @@ Project status:
 - the project method has been redesigned around four stages: (1) critique detection / extraction, (2) critique-guided rewrite, (3) majority-vote preference validation, and (4) severity-aware DPO
 - Stage 1 is implemented under `fg_pipeline/stage1/`; the default backend (`ReleasedAnnotationBackend`) parses the released `hsa_dpo_detection.jsonl` supervision into a normalized `Stage1Record` without any model inference, and the local research path now includes a `LlavaDetectorBackend` plus detector dataset-prep / train / benchmark-export entrypoints
 - Stage 2 is implemented under `fg_pipeline/stage2/`; it consumes Stage 1 JSONL and emits one corrected rewrite per hallucinated record; the default `TemplateRewriteBackend` is smoke-only and deterministic; the intended research path is `LlavaRewriteBackend` using the vendored LLaVA-v1.5 stack
-- Stage 3 is implemented under `fg_pipeline/stage3/`; it runs 3 verification votes per rewrite, keeps pairs only when at least 2 approve, writes an audit JSONL, and exports trainer-compatible preference pairs for Stage 4; the default `HeuristicVerificationBackend` is deterministic and smoke-oriented, while the local research backend is `qwen_llava_ensemble`
+- Stage 3 is implemented under `fg_pipeline/stage3/`; it runs verification votes per rewrite, writes an audit JSONL, and exports trainer-compatible preference pairs for Stage 4; the default `HeuristicVerificationBackend` is deterministic and smoke-oriented, while research runs use `gemini_two_vote` or `gemini_llava_two_vote`
 - Stage 4 remains the released HSA-DPO trainer, now reachable either directly via `hsa_dpo_train.sh` or through `scripts/run_stage4_train.sh`, which feeds Stage 3 preference pairs into the unchanged trainer path
 - the earlier confidence-based Stage 3-5 implementation remains fully removed and the new design does not reintroduce any confidence / calibration / threshold logic
 
@@ -187,7 +187,7 @@ What currently lives under `fg_pipeline/`:
 
 - `fg_pipeline/stage1/` — Stage 1 critique detection / extraction (parser, local detector backend, detector data prep / export CLIs)
 - `fg_pipeline/stage2/` — Stage 2 critique-guided rewrite (prompt template, smoke backend, LLaVA backend seam, CLI)
-- `fg_pipeline/stage3/` — Stage 3 majority-vote verification (vote schema, heuristic backend, local Qwen+LLaVA ensemble backend, CLI)
+- `fg_pipeline/stage3/` — Stage 3 preference verification (vote schema, heuristic backend, Gemini/Gemini+LLaVA backends, CLI)
 - `fg_pipeline/io_utils.py`, `fg_pipeline/paths.py`, `fg_pipeline/schemas.py` — shared utilities
 - `fg_pipeline/eval/` — strict paper-comparison and supplemental local evaluation tooling
 - `fg_pipeline/data/` — curated data fixtures (Stage 1 supervision mirror, smoke fixture, paper reference tables)
@@ -234,22 +234,21 @@ bash scripts/run_stage3_validate.sh
 python -m fg_pipeline.stage3.run_stage3 --help
 ```
 
-Stage 3 consumes Stage 2 rewrites, runs three verification votes per row, keeps
-only pairs with at least 2 approvals, writes an audit JSONL to
+Stage 3 consumes Stage 2 rewrites, runs verification votes per row, writes an audit JSONL to
 `output/fghd/stage3/vote_records.jsonl`, and writes Stage 4-compatible
 preference pairs to `output/fghd/stage3/preference_pairs.jsonl`.
 
 Research Stage 3 backend:
 
 ```bash
-QWEN_MODEL_PATH=models/Qwen-VL-Chat \
-LLAVA_MODEL_PATH=models/llava-v1.5-13b \
+BACKEND=gemini_two_vote \
 bash scripts/run_stage3_validate.sh
 ```
 
-When both `QWEN_MODEL_PATH` and `LLAVA_MODEL_PATH` are set, the Stage 3
-launcher automatically switches from the smoke `heuristic` backend to the local
-`qwen_llava_ensemble` backend.
+With `GEMINI_API_KEY` or `GOOGLE_API_KEY` set, the Stage 3 launcher
+automatically switches from the smoke `heuristic` backend to `gemini_two_vote`.
+Use `BACKEND=gemini_llava_two_vote LLAVA_MODEL_PATH=models/llava-v1.5-13b` if
+you want one hosted Gemini vote plus one local LLaVA vote.
 
 Current limitation: the released detection data does not expose the original
 user prompt separately, so the `question` field passed through Stages 1-3 may

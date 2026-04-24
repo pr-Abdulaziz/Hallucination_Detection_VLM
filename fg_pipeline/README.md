@@ -37,7 +37,8 @@ Design rule:
   - `schemas.py` — `Stage3Record`, `VoteDecision`
   - `prompts.py` — local judge prompt template
   - `backends.py` — `VerificationBackend` protocol plus
-    `HeuristicVerificationBackend` and `QwenLlavaEnsembleBackend`
+    `HeuristicVerificationBackend`, `GeminiTwoVoteBackend`, and
+    `GeminiLlavaTwoVoteBackend`
   - `run_stage3.py` — CLI (`python -m fg_pipeline.stage3.run_stage3`)
 - `fg_pipeline/io_utils.py` — JSONL read/write helpers
 - `fg_pipeline/paths.py` — extension-layer default paths (Stages 1-4)
@@ -137,9 +138,10 @@ Stage 2 output, by design.
 Stage 3 consumes Stage 2 output and decides whether the rewrite is good enough
 to become a training pair.
 
-The default backend (`heuristic`) is deterministic and smoke-only. The local
-research backend is `qwen_llava_ensemble`, which uses Qwen for votes 1 and 3
-and LLaVA for vote 2.
+The default backend (`heuristic`) is deterministic and smoke-only. Research
+runs use `gemini_two_vote` for the fastest hosted path, or
+`gemini_llava_two_vote` when you need one hosted Gemini vote plus one local
+LLaVA vote.
 
 ```bash
 bash scripts/run_stage3_validate.sh
@@ -155,16 +157,16 @@ python -m fg_pipeline.stage3.run_stage3 \
   --stats-out output/fghd/stage3/stats.json
 ```
 
-Flags: `--backend heuristic|qwen_llava_ensemble`, `--limit N` (smoke runs),
-`--strict` (fail on malformed Stage 2 rows or backend errors),
-`--qwen-model-path`, `--llava-model-path`, `--llava-model-base`,
-`--image-root`.
+Flags: `--backend heuristic|gemini_two_vote|gemini_llava_two_vote`, `--limit N`
+(smoke runs), `--strict` (fail on malformed Stage 2 rows or backend errors),
+`--llava-model-path`, `--llava-model-base`, `--gemini-model`, `--image-root`,
+`--resume`, and `--checkpoint-every`.
 
 Stage 3 output:
 
 - `vote_records.jsonl` — one audit row per hallucinated Stage 2 input,
-  including 3 verification votes
-- `preference_pairs.jsonl` — only pairs with at least 2 approvals
+  including the verification votes
+- `preference_pairs.jsonl` — only pairs approved by the selected backend
 - `stats.json` — compact counts and backend metadata
 
 There are no confidence / calibration / threshold fields on Stages 1-3

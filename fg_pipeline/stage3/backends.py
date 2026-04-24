@@ -1,16 +1,13 @@
 """Stage 3 verification backends.
 
 The default backend remains a deterministic heuristic verifier suitable for
-local smoke runs. The research backend is a fully local ``Qwen + LLaVA``
-ensemble that preserves the fixed 3-vote contract without using any hosted
-judge API.
+local smoke runs. Research runs use hosted Gemini judges, optionally paired
+with a local LLaVA judge for cross-family validation.
 """
 
 from __future__ import annotations
 
-import copy
 import base64
-import importlib.util
 import json
 import mimetypes
 import os
@@ -29,7 +26,6 @@ from fg_pipeline.stage3.schemas import VoteDecision
 VOTE_COUNT = 3
 APPROVALS_REQUIRED = 2
 VOTE_POLICY_VERSION = "heuristic_v1"
-ENSEMBLE_VOTE_POLICY_VERSION = "qwen_llava_ensemble_v1"
 GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION = "gemini_llava_two_vote_v1"
 GEMINI_TWO_VOTE_POLICY_VERSION = "gemini_two_vote_v1"
 
@@ -37,11 +33,6 @@ _CRITERIA = {
     1: "hallucination_removal",
     2: "content_preservation",
     3: "overall_preference",
-}
-_ENSEMBLE_FAMILY_BY_VOTE = {
-    1: "qwen",
-    2: "llava",
-    3: "qwen",
 }
 _GEMINI_LLAVA_FAMILY_BY_VOTE = {
     1: "gemini",
@@ -51,24 +42,7 @@ _GEMINI_TWO_VOTE_FAMILY_BY_VOTE = {
     1: "gemini",
     2: "gemini",
 }
-_REQUIRED_QWEN_PACKAGES = (
-    "tiktoken",
-    "matplotlib",
-    "transformers_stream_generator",
-)
-
 _WORD_RE = re.compile(r"\w+")
-
-
-def _require_packages(*packages: str, context: str) -> None:
-    missing = [package for package in packages if importlib.util.find_spec(package) is None]
-    if not missing:
-        return
-    missing_text = ", ".join(missing)
-    raise ImportError(
-        f"{context} requires missing package(s): {missing_text}. "
-        f"Install them before running Stage 3."
-    )
 
 
 def _require_existing_path(path_value: str | None, *, context: str) -> None:
@@ -338,100 +312,6 @@ class HeuristicVerificationBackend:
         )
 
 
-class _QwenJudgeRuntime:
-    family = "qwen"
-
-    def __init__(
-        self,
-        model_path: str,
-        *,
-        image_root: str | None = None,
-        max_new_tokens: int = 64,
-        temperature: float = 0.0,
-        device: str | None = None,
-    ) -> None:
-        self._model_path = model_path
-        self._image_root = Path(image_root) if image_root else Path(".")
-        self._max_new_tokens = max_new_tokens
-        self._temperature = temperature
-        self._device = device
-        self._bundle: tuple[Any, Any] | None = None
-
-    def _load(self) -> tuple[Any, Any]:
-        if self._bundle is not None:
-            return self._bundle
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(self._model_path, trust_remote_code=True)
-        model_kwargs: dict[str, Any] = {
-            "trust_remote_code": True,
-            "torch_dtype": "auto",
-        }
-        if self._device:
-            model_kwargs["device_map"] = {"": self._device}
-        else:
-            model_kwargs["device_map"] = "auto"
-        model = AutoModelForCausalLM.from_pretrained(
-            self._model_path,
-            **model_kwargs,
-        )
-        model.eval()
-        self._bundle = (tokenizer, model)
-        return self._bundle
-
-    def _resolved_image(self, record: dict[str, Any]) -> Path | None:
-        image_path = record.get("image")
-        if not image_path:
-            return None
-        candidate = Path(image_path)
-        if not candidate.is_absolute():
-            candidate = self._image_root / candidate
-        return candidate if candidate.exists() else None
-
-    def judge(self, record: dict[str, Any], criterion: str) -> str:
-        import torch
-
-        tokenizer, model = self._load()
-        prompt = build_vote_prompt(record, criterion)
-        image_path = self._resolved_image(record)
-
-        if hasattr(tokenizer, "from_list_format") and hasattr(model, "chat"):
-            generation_config = copy.deepcopy(model.generation_config)
-            generation_config.max_new_tokens = self._max_new_tokens
-            generation_config.do_sample = self._temperature > 0.0
-            generation_config.temperature = self._temperature
-            generation_config.num_beams = 1
-            if image_path:
-                query = tokenizer.from_list_format(
-                    [{"image": str(image_path)}, {"text": prompt}]
-                )
-            else:
-                query = prompt
-            response, _ = model.chat(
-                tokenizer,
-                query=query,
-                history=None,
-                append_history=False,
-                generation_config=generation_config,
-            )
-            return str(response).strip()
-
-        inputs = tokenizer(prompt, return_tensors="pt")
-        inputs = {key: value.to(model.device) for key, value in inputs.items()}
-        generate_kwargs: dict[str, Any] = {
-            "max_new_tokens": self._max_new_tokens,
-            "do_sample": self._temperature > 0.0,
-        }
-        if self._temperature > 0.0:
-            generate_kwargs["temperature"] = self._temperature
-        else:
-            generate_kwargs["num_beams"] = 1
-        with torch.inference_mode():
-            output_ids = model.generate(**inputs, **generate_kwargs)
-        return tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-
-
 class _LlavaJudgeRuntime:
     family = "llava"
 
@@ -676,93 +556,6 @@ class _GeminiJudgeRuntime:
         raise RuntimeError(f"Gemini API request failed: {last_error}")
 
 
-class QwenLlavaEnsembleBackend:
-    """Local research backend with fixed Qwen/LLaVA vote ownership.
-
-    Vote 1: Qwen hallucination removal
-    Vote 2: LLaVA content preservation
-    Vote 3: Qwen overall preference
-
-    A pair passes only when at least two votes approve *and* there is at least
-    one approved vote from each model family.
-    """
-
-    name = "qwen_llava_ensemble"
-    policy_version = ENSEMBLE_VOTE_POLICY_VERSION
-    approval_families_required = ("qwen", "llava")
-
-    def __init__(
-        self,
-        *,
-        qwen_model_path: str,
-        llava_model_path: str,
-        llava_model_base: str | None = None,
-        llava_conv_mode: str = "vicuna_v1",
-        image_root: str | None = None,
-        qwen_max_new_tokens: int = 64,
-        llava_max_new_tokens: int = 64,
-        qwen_temperature: float = 0.0,
-        llava_temperature: float = 0.0,
-        qwen_device: str | None = None,
-        llava_device: str | None = None,
-        qwen_runtime: Any | None = None,
-        llava_runtime: Any | None = None,
-    ) -> None:
-        if qwen_runtime is None:
-            _require_existing_path(qwen_model_path, context="qwen_llava_ensemble qwen_model_path")
-            _require_packages(*_REQUIRED_QWEN_PACKAGES, context="qwen_llava_ensemble")
-        if llava_runtime is None:
-            _require_existing_path(llava_model_path, context="qwen_llava_ensemble llava_model_path")
-            if llava_model_base is not None:
-                _require_existing_path(llava_model_base, context="qwen_llava_ensemble llava_model_base")
-        self._qwen = qwen_runtime or _QwenJudgeRuntime(
-            qwen_model_path,
-            image_root=image_root,
-            max_new_tokens=qwen_max_new_tokens,
-            temperature=qwen_temperature,
-            device=qwen_device,
-        )
-        self._llava = llava_runtime or _LlavaJudgeRuntime(
-            llava_model_path,
-            model_base=llava_model_base,
-            conv_mode=llava_conv_mode,
-            image_root=image_root,
-            max_new_tokens=llava_max_new_tokens,
-            temperature=llava_temperature,
-            device=llava_device,
-        )
-
-    def vote(self, record: dict[str, Any], *, vote_index: int, strict: bool = False) -> VoteDecision:
-        if vote_index not in _CRITERIA:
-            raise VerificationError(f"unsupported vote_index={vote_index}; expected 1..{VOTE_COUNT}")
-        criterion = _CRITERIA[vote_index]
-        family = _ENSEMBLE_FAMILY_BY_VOTE[vote_index]
-        runtime = self._qwen if family == "qwen" else self._llava
-        try:
-            raw = runtime.judge(record, criterion)
-            payload = _extract_json_object(raw)
-            approved = _parse_boolean(payload.get("approved"))
-            reason = str(payload.get("reason") or "").strip() or "no reason provided"
-            return VoteDecision(
-                vote_index=vote_index,
-                criterion=criterion,
-                approved=approved,
-                reason=reason,
-                model_family=family,
-                backend_name=self.name,
-            )
-        except Exception as exc:
-            if strict:
-                raise VerificationError(f"{family} judge failed for vote {vote_index}: {exc}") from exc
-            return _build_parse_failure_vote(
-                vote_index=vote_index,
-                criterion=criterion,
-                backend_name=self.name,
-                model_family=family,
-                error=exc,
-            )
-
-
 class GeminiLlavaTwoVoteBackend:
     """Hosted Gemini + local LLaVA backend with a fixed two-vote decision.
 
@@ -930,28 +723,6 @@ def get_backend(name: str, **kwargs: Any) -> VerificationBackend:
     key = (name or "").strip().lower()
     if key == HeuristicVerificationBackend.name:
         return HeuristicVerificationBackend()
-    if key == QwenLlavaEnsembleBackend.name:
-        qwen_model_path = kwargs.get("qwen_model_path") or ""
-        llava_model_path = kwargs.get("llava_model_path") or ""
-        if not qwen_model_path:
-            raise ValueError("qwen_llava_ensemble requires --qwen-model-path")
-        if not llava_model_path:
-            raise ValueError("qwen_llava_ensemble requires --llava-model-path")
-        return QwenLlavaEnsembleBackend(
-            qwen_model_path=qwen_model_path,
-            llava_model_path=llava_model_path,
-            llava_model_base=kwargs.get("llava_model_base"),
-            llava_conv_mode=kwargs.get("llava_conv_mode", "vicuna_v1"),
-            image_root=kwargs.get("image_root"),
-            qwen_max_new_tokens=int(kwargs.get("qwen_max_new_tokens", 64)),
-            llava_max_new_tokens=int(kwargs.get("llava_max_new_tokens", 64)),
-            qwen_temperature=float(kwargs.get("qwen_temperature", 0.0)),
-            llava_temperature=float(kwargs.get("llava_temperature", 0.0)),
-            qwen_device=kwargs.get("qwen_device"),
-            llava_device=kwargs.get("llava_device"),
-            qwen_runtime=kwargs.get("qwen_runtime"),
-            llava_runtime=kwargs.get("llava_runtime"),
-        )
     if key == GeminiLlavaTwoVoteBackend.name:
         llava_model_path = kwargs.get("llava_model_path") or ""
         if not llava_model_path:
@@ -980,7 +751,6 @@ def get_backend(name: str, **kwargs: Any) -> VerificationBackend:
         )
     available = ", ".join((
         HeuristicVerificationBackend.name,
-        QwenLlavaEnsembleBackend.name,
         GeminiLlavaTwoVoteBackend.name,
         GeminiTwoVoteBackend.name,
     ))
@@ -991,13 +761,11 @@ __all__ = [
     "VerificationBackend",
     "VerificationError",
     "HeuristicVerificationBackend",
-    "QwenLlavaEnsembleBackend",
     "GeminiLlavaTwoVoteBackend",
     "GeminiTwoVoteBackend",
     "VOTE_COUNT",
     "APPROVALS_REQUIRED",
     "VOTE_POLICY_VERSION",
-    "ENSEMBLE_VOTE_POLICY_VERSION",
     "GEMINI_LLAVA_TWO_VOTE_POLICY_VERSION",
     "GEMINI_TWO_VOTE_POLICY_VERSION",
     "evaluate_votes",

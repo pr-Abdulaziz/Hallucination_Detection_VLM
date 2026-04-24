@@ -24,25 +24,20 @@ OUTPUT="${OUTPUT:-${OUTPUT_DIR}/vote_records.jsonl}"
 PREFERENCES_OUT="${PREFERENCES_OUT:-${OUTPUT_DIR}/preference_pairs.jsonl}"
 STATS_OUT="${STATS_OUT:-${OUTPUT_DIR}/stats.json}"
 BACKEND="${BACKEND:-heuristic}"
-QWEN_MODEL_PATH="${QWEN_MODEL_PATH:-}"
 LLAVA_MODEL_PATH="${LLAVA_MODEL_PATH:-}"
 LLAVA_MODEL_BASE="${LLAVA_MODEL_BASE:-}"
 LLAVA_CONV_MODE="${LLAVA_CONV_MODE:-vicuna_v1}"
 IMAGE_ROOT="${IMAGE_ROOT:-${REPO_ROOT}}"
-QWEN_MAX_NEW_TOKENS="${QWEN_MAX_NEW_TOKENS:-64}"
 LLAVA_MAX_NEW_TOKENS="${LLAVA_MAX_NEW_TOKENS:-64}"
 GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash-lite}"
 GEMINI_MAX_OUTPUT_TOKENS="${GEMINI_MAX_OUTPUT_TOKENS:-64}"
 ROW_WORKERS="${ROW_WORKERS:-1}"
-QWEN_DEVICE="${QWEN_DEVICE:-}"
 LLAVA_DEVICE="${LLAVA_DEVICE:-}"
 RESUME="${RESUME:-0}"
 CHECKPOINT_EVERY="${CHECKPOINT_EVERY:-50}"
 
 if [ "${BACKEND}" = "heuristic" ] && [ -n "${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}" ]; then
   BACKEND="gemini_two_vote"
-elif [ "${BACKEND}" = "heuristic" ] && [ -n "${QWEN_MODEL_PATH}" ] && [ -n "${LLAVA_MODEL_PATH}" ]; then
-  BACKEND="qwen_llava_ensemble"
 fi
 
 if [ "${BACKEND}" = "gemini_two_vote" ] && [ "${ROW_WORKERS}" = "1" ]; then
@@ -54,14 +49,6 @@ if [ "${BACKEND}" = "gemini_llava_two_vote" ] && [ -z "${LLAVA_DEVICE}" ]; then
     GPU_COUNT="$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ' || true)"
     if [ "${GPU_COUNT}" -ge 1 ]; then
       LLAVA_DEVICE="cuda:0"
-    fi
-  fi
-elif [ "${BACKEND}" = "qwen_llava_ensemble" ] && [ -z "${QWEN_DEVICE}" ] && [ -z "${LLAVA_DEVICE}" ]; then
-  if command -v nvidia-smi >/dev/null 2>&1; then
-    GPU_COUNT="$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ' || true)"
-    if [ "${GPU_COUNT}" -ge 2 ]; then
-      QWEN_DEVICE="cuda:0"
-      LLAVA_DEVICE="cuda:1"
     fi
   fi
 fi
@@ -128,30 +115,6 @@ if [ "${BACKEND}" = "gemini_two_vote" ]; then
     --gemini-model "${GEMINI_MODEL}"
     --gemini-max-output-tokens "${GEMINI_MAX_OUTPUT_TOKENS}"
   )
-fi
-
-if [ "${BACKEND}" = "qwen_llava_ensemble" ]; then
-  if [ -z "${QWEN_MODEL_PATH}" ] || [ -z "${LLAVA_MODEL_PATH}" ]; then
-    echo "qwen_llava_ensemble requires QWEN_MODEL_PATH and LLAVA_MODEL_PATH" >&2
-    exit 1
-  fi
-  CMD+=(
-    --qwen-model-path "${QWEN_MODEL_PATH}"
-    --llava-model-path "${LLAVA_MODEL_PATH}"
-    --image-root "${IMAGE_ROOT}"
-    --llava-conv-mode "${LLAVA_CONV_MODE}"
-    --qwen-max-new-tokens "${QWEN_MAX_NEW_TOKENS}"
-    --llava-max-new-tokens "${LLAVA_MAX_NEW_TOKENS}"
-  )
-  if [ -n "${QWEN_DEVICE}" ]; then
-    CMD+=(--qwen-device "${QWEN_DEVICE}")
-  fi
-  if [ -n "${LLAVA_DEVICE}" ]; then
-    CMD+=(--llava-device "${LLAVA_DEVICE}")
-  fi
-  if [ -n "${LLAVA_MODEL_BASE}" ]; then
-    CMD+=(--llava-model-base "${LLAVA_MODEL_BASE}")
-  fi
 fi
 
 "${CMD[@]}" "$@"
