@@ -34,6 +34,20 @@ def load_model_bundle(spec: ModelSpec):
     from llava.model.builder import load_pretrained_model
     from llava.mm_utils import get_model_name_from_path
 
+    if spec.kind == "lora":
+        from peft import PeftModel
+
+        base_path = spec.model_base or spec.model_path
+        tokenizer, model, image_processor, context_len = load_pretrained_model(
+            model_path=base_path,
+            model_base=None,
+            model_name=get_model_name_from_path(base_path),
+        )
+        model = PeftModel.from_pretrained(model, spec.model_path)
+        model = model.merge_and_unload()
+        model.eval()
+        return tokenizer, model, image_processor, context_len
+
     tokenizer, model, image_processor, context_len = load_pretrained_model(
         model_path=spec.model_path,
         model_base=spec.model_base,
@@ -110,4 +124,7 @@ def generate_answers_for_records(
                 "text": text,
             }
         )
+    del tokenizer, model, image_processor
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     return outputs

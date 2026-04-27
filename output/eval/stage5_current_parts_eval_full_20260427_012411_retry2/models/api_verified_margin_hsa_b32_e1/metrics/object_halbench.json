@@ -1,0 +1,10 @@
+{
+  "benchmark": "object_halbench",
+  "model_id": "api_verified_margin_hsa_b32_e1",
+  "metrics": {
+    "chairs": 36.0,
+    "chairi": 10.40767386091127
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+}

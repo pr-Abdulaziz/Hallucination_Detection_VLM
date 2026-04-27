@@ -10,7 +10,6 @@ from fg_pipeline.eval.utils import (
     binary_classification_metrics,
     default_dataset_root,
     dump_json,
-    load_json,
     mkdir,
     normalize_text,
     read_jsonl,
@@ -24,6 +23,12 @@ def _yes_no(text: str | None) -> str:
     if normalized.startswith("no"):
         return "no"
     return normalized.split(" ")[0] if normalized else ""
+
+
+def _percent(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return float(value) * 100.0
 
 
 class PopeBenchmark:
@@ -67,6 +72,13 @@ class PopeBenchmark:
         if not question_path.exists():
             raise FileNotFoundError(f"Missing POPE question file: {question_path}")
         raw_questions = list(read_jsonl(question_path))
+        if spec.split:
+            raw_questions = [
+                row
+                for row in raw_questions
+                if str(row.get("category") or row.get("split") or "").strip().lower()
+                in {"", str(spec.split).strip().lower()}
+            ]
         if limit is not None:
             raw_questions = raw_questions[:limit]
         questions = []
@@ -98,11 +110,11 @@ class PopeBenchmark:
         y_pred = [1 if _yes_no(row["text"]) == "yes" else 0 for row in answers]
         metrics = binary_classification_metrics(y_true, y_pred)
         metric_payload = {
-            "f1": metrics["f1"],
-            "pope_adv_f1": metrics["f1"],
-            "precision": metrics["precision"],
-            "recall": metrics["recall"],
-            "accuracy": metrics["accuracy"],
+            "f1": _percent(metrics["f1"]),
+            "pope_adv_f1": _percent(metrics["f1"]),
+            "precision": _percent(metrics["precision"]),
+            "recall": _percent(metrics["recall"]),
+            "accuracy": _percent(metrics["accuracy"]),
         }
         metric_artifact = MetricArtifact(
             benchmark=self.name,

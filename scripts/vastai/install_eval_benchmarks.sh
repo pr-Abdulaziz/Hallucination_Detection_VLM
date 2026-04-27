@@ -45,8 +45,8 @@ if [ ! -f "${REPO_ROOT}/models.eval.example.json" ]; then
   cat > "${REPO_ROOT}/models.eval.example.json" <<'EOF'
 [
   {
-    "model_id": "llava15_base_13b",
-    "model_path": "models/llava-v1.5-13b",
+    "model_id": "llava15_base_7b",
+    "model_path": "models/llava-v1.5-7b",
     "model_base": null,
     "kind": "base",
     "conv_mode": "vicuna_v1",
@@ -56,8 +56,8 @@ if [ ! -f "${REPO_ROOT}/models.eval.example.json" ]; then
   },
   {
     "model_id": "ours_stage5_lora",
-    "model_path": "output/fghd/stage5_llava_margin",
-    "model_base": "models/llava-v1.5-13b",
+    "model_path": "output/fghd/paper_stage5_hsa_dpo",
+    "model_base": "models/llava-v1.5-7b",
     "kind": "lora",
     "conv_mode": "vicuna_v1",
     "temperature": 0.0,

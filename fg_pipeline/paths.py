@@ -50,3 +50,25 @@ DEFAULT_STAGE4_REPAIR_STATS = STAGE4_REPAIR_OUTPUT_DIR / "stats.json"
 # Stage 5 severity-margin DPO defaults.
 STAGE5_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "stage5_llava_margin"
 DEFAULT_STAGE5_DATA = DEFAULT_STAGE4_FINAL_PREFERENCES
+
+# Paper-faithful additive pipeline defaults.
+PAPER_STAGE1_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage1"
+DEFAULT_PAPER_STAGE1_OUTPUT = PAPER_STAGE1_OUTPUT_DIR / "d_faif.jsonl"
+DEFAULT_PAPER_STAGE1_STATS = PAPER_STAGE1_OUTPUT_DIR / "stats.json"
+
+PAPER_STAGE2_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage2"
+DEFAULT_PAPER_STAGE2_DETECTOR_DATA = PAPER_STAGE2_OUTPUT_DIR / "detector_train.json"
+DEFAULT_PAPER_STAGE2_STATS = PAPER_STAGE2_OUTPUT_DIR / "detector_split_stats.json"
+
+PAPER_STAGE3_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage3"
+DEFAULT_PAPER_STAGE3_DETECTOR = PAPER_STAGE3_OUTPUT_DIR / "detector_lora"
+DEFAULT_PAPER_STAGE3_DETECTIONS = PAPER_STAGE3_OUTPUT_DIR / "detections.jsonl"
+DEFAULT_PAPER_STAGE3_STATS = PAPER_STAGE3_OUTPUT_DIR / "detection_stats.json"
+
+PAPER_STAGE4_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage4"
+DEFAULT_PAPER_STAGE4_REWRITES = PAPER_STAGE4_OUTPUT_DIR / "rewrite_records.jsonl"
+DEFAULT_PAPER_STAGE4_PREFERENCES = PAPER_STAGE4_OUTPUT_DIR / "preference_pairs.jsonl"
+DEFAULT_PAPER_STAGE4_STATS = PAPER_STAGE4_OUTPUT_DIR / "stats.json"
+
+PAPER_STAGE5_DPO_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage5_dpo"
+PAPER_STAGE5_HSA_OUTPUT_DIR = REPO_ROOT / "output" / "fghd" / "paper_stage5_hsa_dpo"

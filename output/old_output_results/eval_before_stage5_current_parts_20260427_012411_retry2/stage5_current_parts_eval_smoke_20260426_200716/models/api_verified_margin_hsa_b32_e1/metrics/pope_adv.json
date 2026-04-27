@@ -1,0 +1,13 @@
+{
+  "benchmark": "pope_adv",
+  "model_id": "api_verified_margin_hsa_b32_e1",
+  "metrics": {
+    "f1": 50.0,
+    "pope_adv_f1": 50.0,
+    "precision": 100.0,
+    "recall": 33.33333333333333,
+    "accuracy": 60.0
+  },
+  "comparable_to_paper": true,
+  "comparison_note": null
+}

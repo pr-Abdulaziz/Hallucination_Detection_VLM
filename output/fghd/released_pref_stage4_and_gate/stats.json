@@ -1,0 +1,19 @@
+{
+  "accepted_input": "output/fghd/released_pref_stage3_and_gate/passed_by_either.jsonl",
+  "accepted_rows": 7818,
+  "backend": "llava",
+  "empty_rewrite": 0,
+  "final_preference_rows": 8291,
+  "final_preferences_out": "output/fghd/released_pref_stage4_and_gate/final_preference_pairs.jsonl",
+  "identical_to_rejected": 95,
+  "input_rows": 568,
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_repair_v1",
+  "rejected_input": "output/fghd/released_pref_stage3_and_gate/rejected_by_both.jsonl",
+  "repair_out": "output/fghd/released_pref_stage4_and_gate/repair_records.jsonl",
+  "repair_records_emitted": 473,
+  "repair_rows_processed": 568,
+  "repaired_preferences_out": "output/fghd/released_pref_stage4_and_gate/repaired_preferences.jsonl",
+  "repaired_rows": 473,
+  "stage": "released_pref_stage4_repair"
+}

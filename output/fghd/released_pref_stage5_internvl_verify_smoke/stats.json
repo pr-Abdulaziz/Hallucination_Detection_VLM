@@ -1,0 +1,21 @@
+{
+  "accepted_input": "output/fghd/released_pref_stage3_and_gate/passed_by_either.jsonl",
+  "accepted_rows": 7818,
+  "approved_out": "output/fghd/released_pref_stage5_internvl_verify_smoke/approved_repaired_preferences.jsonl",
+  "approved_repaired_rows": 0,
+  "failed_out": "output/fghd/released_pref_stage5_internvl_verify_smoke/failed_repaired_preferences.jsonl",
+  "failed_repaired_rows": 3,
+  "final_preference_rows": 7818,
+  "final_preferences_out": "output/fghd/released_pref_stage5_internvl_verify_smoke/final_verified_preference_pairs.jsonl",
+  "missing_images": 0,
+  "model_path": "/root/models/InternVL-Chat-V1-2-Plus",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "parse_or_runtime_failures": 0,
+  "processed_repaired_rows": 3,
+  "prompt_version": "internvl_repair_verify_v1",
+  "repaired_input": "output/fghd/released_pref_stage4_and_gate/repaired_preferences.jsonl",
+  "stage": "released_pref_stage5_internvl_verify",
+  "total_repaired_rows": 3,
+  "verification_out": "output/fghd/released_pref_stage5_internvl_verify_smoke/verification_records.jsonl",
+  "verifier_model": "InternVL-Chat-V1-2-Plus"
+}

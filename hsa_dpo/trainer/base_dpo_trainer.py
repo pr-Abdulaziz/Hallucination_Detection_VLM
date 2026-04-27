@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import inspect
 import warnings
 from datasets import Dataset
 from collections import defaultdict
@@ -408,6 +409,7 @@ class BaseDPOTrainer(Trainer):
         model: Union[PreTrainedModel, nn.Module],
         inputs: Dict[str, Union[torch.Tensor, Any]],
         return_outputs=False,
+        num_items_in_batch=None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         raise NotImplementedError
     
@@ -447,7 +449,7 @@ class BaseDPOTrainer(Trainer):
         
         return initial_output
 
-    def log(self, logs: Dict[str, float]) -> None:
+    def log(self, logs: Dict[str, float], start_time: Optional[float] = None) -> None:
         """
         Log `logs` on the various objects watching training, including stored metrics.
 
@@ -461,4 +463,6 @@ class BaseDPOTrainer(Trainer):
         for key, metrics in self._stored_metrics[train_eval].items():
             logs[key] = torch.tensor(metrics).mean().item()
         del self._stored_metrics[train_eval]
+        if "start_time" in inspect.signature(super().log).parameters:
+            return super().log(logs, start_time)
         return super().log(logs)

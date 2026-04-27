@@ -111,7 +111,7 @@ class LlavaRewriteBackend:
         *,
         model_base: Optional[str] = None,
         conv_mode: str = "vicuna_v1",
-        max_new_tokens: int = 256,
+        max_new_tokens: Optional[int] = 256,
         temperature: float = 0.0,
         image_root: Optional[str] = None,
         prompt_builder: Optional[Callable[[Any], str]] = None,
@@ -225,9 +225,10 @@ class LlavaRewriteBackend:
 
         generate_kwargs: dict[str, Any] = {
             "do_sample": self._temperature > 0.0,
-            "max_new_tokens": self._max_new_tokens,
             "use_cache": True,
         }
+        if self._max_new_tokens is not None:
+            generate_kwargs["max_new_tokens"] = self._max_new_tokens
         if self._temperature > 0.0:
             generate_kwargs["temperature"] = self._temperature
         else:

@@ -1,0 +1,11 @@
+{
+  "backend": "api_judge",
+  "critique_items": 5,
+  "detector_prompt_version": "detector_v1",
+  "input_path": "output/fghd/smoke_stage3_api_judge_5_v2/input_hall5.jsonl",
+  "output_path": "output/fghd/smoke_stage3_api_judge_5_v2/detections.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "predicted_hallucinated_rows": 1,
+  "predicted_non_hallucinated_rows": 4,
+  "total_rows": 5
+}

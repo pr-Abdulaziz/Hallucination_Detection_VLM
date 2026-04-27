@@ -10,7 +10,7 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "${REPO_ROOT}/.venv/bin/activate" ]; then
   source "${REPO_ROOT}/.venv/bin/activate"
 fi
 
-MODEL_PATH="${MODEL_PATH:-models/llava-v1.5-13b}"
+MODEL_PATH="${MODEL_PATH:-models/llava-v1.5-7b}"
 DATA_PATH="${DATA_PATH:-output/fghd/stage1/detector_train.json}"
 IMAGE_FOLDER="${IMAGE_FOLDER:-${REPO_ROOT}}"
 OUTPUT_DIR="${OUTPUT_DIR:-output/fghd/stage1/detector_llava}"

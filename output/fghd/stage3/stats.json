@@ -1,0 +1,15 @@
+{
+  "approval_families_required": [
+    "gemini",
+    "openai"
+  ],
+  "approvals_required": 2,
+  "backend": "gemini_openai_two_vote",
+  "dropped_rows": 7545,
+  "input_path": "/workspace/Hallucination_Detection_VLM/output/fghd/stage2/rewrites.jsonl",
+  "preference_pairs_emitted": 98,
+  "total_input_rows": 7643,
+  "vote_count": 2,
+  "vote_policy_version": "gemini_openai_two_vote_v1",
+  "vote_rows_processed": 7643
+}

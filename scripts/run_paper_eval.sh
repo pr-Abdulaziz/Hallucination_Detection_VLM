@@ -10,23 +10,42 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "${REPO_ROOT}/.venv/bin/activate" ]; then
   source "${REPO_ROOT}/.venv/bin/activate"
 fi
 
-OUTPUT_ROOT="${OUTPUT_ROOT:-output/eval}"
-RUN_NAME="${RUN_NAME:-paper_core}"
-MODEL_MANIFEST="${MODEL_MANIFEST:-models.eval.json}"
-BENCHMARKS="${BENCHMARKS:-mhalubench,mfhallubench,pope_adv}"
+RUN_NAME="${RUN_NAME:-paper_stage5_eval}"
+MODELS_JSON="${MODELS_JSON:-output/fghd/paper_models.eval.json}"
+BENCHMARKS="${BENCHMARKS:-pope_adv,object_halbench,amber}"
 
-if [ ! -f "${MODEL_MANIFEST}" ]; then
-  echo "Missing MODEL_MANIFEST: ${MODEL_MANIFEST}" >&2
-  exit 1
-fi
+mkdir -p "$(dirname "${MODELS_JSON}")"
+cat > "${MODELS_JSON}" <<JSON
+[
+  {
+    "model_id": "llava15_base_7b",
+    "model_path": "models/llava-v1.5-7b",
+    "model_base": null,
+    "kind": "base",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  },
+  {
+    "model_id": "paper_stage5_hsa_dpo",
+    "model_path": "output/fghd/paper_stage5_hsa_dpo",
+    "model_base": "models/llava-v1.5-7b",
+    "kind": "lora",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  }
+]
+JSON
 
-CMD=(
-  python -m fg_pipeline.eval.run_eval
-  --run-name "${RUN_NAME}"
-  --models-json "${MODEL_MANIFEST}"
-  --benchmarks "${BENCHMARKS}"
-  --paper-core
-  --output-root "${OUTPUT_ROOT}"
-)
+python -m json.tool "${MODELS_JSON}" >/dev/null
 
-"${CMD[@]}" "$@"
+python -m fg_pipeline.eval.run_eval \
+  --run-name "${RUN_NAME}" \
+  --models-json "${MODELS_JSON}" \
+  --benchmarks "${BENCHMARKS}" \
+  --supplemental \
+  --general \
+  --output-root "${OUTPUT_ROOT:-output/eval}" "$@"

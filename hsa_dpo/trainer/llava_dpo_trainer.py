@@ -137,6 +137,7 @@ class LlavaDPOTrainer(BaseDPOTrainer):
         model: Union[PreTrainedModel, nn.Module],
         inputs: Dict[str, Union[torch.Tensor, Any]],
         return_outputs=False,
+        num_items_in_batch=None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         
         if not self.use_dpo_data_collator:

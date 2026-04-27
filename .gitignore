@@ -36,7 +36,10 @@ wheels/
 
 # Model weights
 /models/
-/output/
+/old_outputs/
+checkpoint-*/
+**/checkpoint-*/
+**/global_step*/
 *.pt
 *.pth
 *.bin
@@ -87,15 +90,19 @@ ENV/
 # Local scratch / personal notes
 scratch/
 tmp/
+/tmp_*/
 /local/
 *.local
 *.local.json
 *.local.md
 NOTES.local.*
 TODO.local.*
+nohup.out
+models.eval.json
 
 # Vast AI local-only state
 /.vastai/
+/.__codex_sync_marker__/
 /VAST_AI_SETUP.local.md
 /vast_sync.tar
 /scripts/vastai/*.local.sh

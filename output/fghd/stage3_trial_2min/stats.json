@@ -1,0 +1,15 @@
+{
+  "approval_families_required": [
+    "gemini",
+    "llava"
+  ],
+  "approvals_required": 2,
+  "backend": "gemini_llava_two_vote",
+  "dropped_rows": 18,
+  "input_path": "/workspace/Hallucination_Detection_VLM/output/fghd/stage2/rewrites.jsonl",
+  "preference_pairs_emitted": 2,
+  "total_input_rows": 20,
+  "vote_count": 2,
+  "vote_policy_version": "gemini_llava_two_vote_v1",
+  "vote_rows_processed": 20
+}

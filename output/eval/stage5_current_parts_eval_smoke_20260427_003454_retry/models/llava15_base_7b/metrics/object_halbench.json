@@ -1,0 +1,10 @@
+{
+  "benchmark": "object_halbench",
+  "model_id": "llava15_base_7b",
+  "metrics": {
+    "chairs": 20.0,
+    "chairi": 6.451612903225806
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+}

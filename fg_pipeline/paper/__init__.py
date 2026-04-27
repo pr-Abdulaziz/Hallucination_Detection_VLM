@@ -1,0 +1,43 @@
+"""Paper-faithful FAIF pipeline entrypoints and prompt templates."""
+
+from fg_pipeline.paper.prompts import (
+    API_CRITIC_PROMPT_VERSION,
+    DETECTOR_PROMPT_VERSION,
+    DDG_ANNOTATION_PROMPT_VERSION,
+    REVISION_PROMPT_VERSION,
+    REWRITE_PROMPT_VERSION,
+    SEVERITY_RUBRIC_VERSION,
+    VCR_ANNOTATION_PROMPT_VERSION,
+    build_api_critic_feedback_prompt,
+    build_ddg_annotation_prompt,
+    build_detector_prompt,
+    build_feedback_revision_prompt,
+    build_paper_rewrite_prompt,
+    build_rewrite_prompt,
+    build_vcr_annotation_prompt,
+    render_ddg_prompt,
+    render_severity_rubric,
+    render_vcr_prompt,
+    severity_rubric_text,
+)
+
+__all__ = [
+    "API_CRITIC_PROMPT_VERSION",
+    "DETECTOR_PROMPT_VERSION",
+    "DDG_ANNOTATION_PROMPT_VERSION",
+    "REVISION_PROMPT_VERSION",
+    "REWRITE_PROMPT_VERSION",
+    "SEVERITY_RUBRIC_VERSION",
+    "VCR_ANNOTATION_PROMPT_VERSION",
+    "build_api_critic_feedback_prompt",
+    "build_ddg_annotation_prompt",
+    "build_detector_prompt",
+    "build_feedback_revision_prompt",
+    "build_paper_rewrite_prompt",
+    "build_rewrite_prompt",
+    "build_vcr_annotation_prompt",
+    "render_ddg_prompt",
+    "render_severity_rubric",
+    "render_vcr_prompt",
+    "severity_rubric_text",
+]

@@ -1,0 +1,18 @@
+{
+  "accepted_out": "output/fghd/released_pref_stage3_openai/validated_preferences.jsonl",
+  "accepted_rows": 2914,
+  "api_judge": "openai",
+  "audit_out": "output/fghd/released_pref_stage3_openai/judgement_records.jsonl",
+  "decision_rule": "either",
+  "input_path": "hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_validation_v1",
+  "rejected_out": "output/fghd/released_pref_stage3_openai/rejected_for_repair.jsonl",
+  "rejected_rows": 5472,
+  "stage": "released_pref_stage3_validation",
+  "total_rows": 8386,
+  "vote_counts": {
+    "openai:False": 5472,
+    "openai:True": 2914
+  }
+}

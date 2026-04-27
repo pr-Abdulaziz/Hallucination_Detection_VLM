@@ -7,6 +7,7 @@ import random
 import logging
 import argparse
 import sys
+import inspect
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -777,7 +778,7 @@ def main():
         script_args.ddp_find_unused_parameters = False
     
     # initialize training arguments:
-    training_args = TrainingArguments(
+    training_kwargs = dict(
         per_device_train_batch_size=script_args.per_device_train_batch_size,
         per_device_eval_batch_size=script_args.per_device_eval_batch_size,
         max_steps=script_args.max_steps,
@@ -787,7 +788,6 @@ def main():
         gradient_checkpointing=script_args.gradient_checkpointing,
         ddp_find_unused_parameters=script_args.ddp_find_unused_parameters,
         learning_rate=script_args.learning_rate,
-        evaluation_strategy=script_args.evaluation_strategy,
         eval_steps=script_args.eval_steps,
         output_dir=script_args.output_dir,
         report_to=script_args.report_to,
@@ -809,6 +809,11 @@ def main():
         seed=script_args.seed,
         disable_tqdm=False,
     )
+    if "evaluation_strategy" in inspect.signature(TrainingArguments).parameters:
+        training_kwargs["evaluation_strategy"] = script_args.evaluation_strategy
+    else:
+        training_kwargs["eval_strategy"] = script_args.evaluation_strategy
+    training_args = TrainingArguments(**training_kwargs)
 
     print("Train:", training_args)
     # initialize the DPO trainer

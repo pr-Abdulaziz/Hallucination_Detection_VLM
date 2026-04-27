@@ -1,0 +1,13 @@
+{
+  "benchmark": "pope_adv",
+  "model_id": "ours_stage5_lora",
+  "metrics": {
+    "f1": 80.0,
+    "pope_adv_f1": 80.0,
+    "precision": 100.0,
+    "recall": 66.66666666666666,
+    "accuracy": 80.0
+  },
+  "comparable_to_paper": true,
+  "comparison_note": null
+}
