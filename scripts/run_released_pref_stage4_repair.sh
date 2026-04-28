@@ -17,15 +17,38 @@ if [ -f "${REPO_ROOT}/.env" ]; then
   set +a
 fi
 
-REJECTED_INPUT="${REJECTED_INPUT:-output/fghd/released_pref_stage3/rejected_for_repair.jsonl}"
-ACCEPTED_INPUT="${ACCEPTED_INPUT:-output/fghd/released_pref_stage3/validated_preferences.jsonl}"
-REPAIR_OUT="${REPAIR_OUT:-output/fghd/released_pref_stage4/repair_records.jsonl}"
-REPAIRED_PREFERENCES_OUT="${REPAIRED_PREFERENCES_OUT:-output/fghd/released_pref_stage4/repaired_preferences.jsonl}"
-FINAL_PREFERENCES_OUT="${FINAL_PREFERENCES_OUT:-output/fghd/released_pref_stage4/final_preference_pairs.jsonl}"
-STATS_OUT="${STATS_OUT:-output/fghd/released_pref_stage4/stats.json}"
+SHOT_MODE="${SHOT_MODE:-${EXPERIMENT_MODE:-${PROMPT_MODE:-zero_shot}}}"
+case "${SHOT_MODE}" in
+  zero|zero_shot)
+    EXPERIMENT_MODE="zero_shot"
+    DEFAULT_STAGE3_DIR="output/fghd/released_pref_stage3"
+    DEFAULT_STAGE4_DIR="output/fghd/released_pref_stage4"
+    ;;
+  two|2shot|two_shot)
+    EXPERIMENT_MODE="two_shot"
+    DEFAULT_STAGE3_DIR="output/fghd/released_pref_stage3_2shot_experiment"
+    DEFAULT_STAGE4_DIR="output/fghd/released_pref_stage4_2shot_experiment"
+    ;;
+  *)
+    echo "Unsupported SHOT_MODE/EXPERIMENT_MODE: ${SHOT_MODE}. Use zero_shot or two_shot." >&2
+    exit 2
+    ;;
+esac
+STAGE3_DIR="${STAGE3_DIR:-${DEFAULT_STAGE3_DIR}}"
+STAGE4_DIR="${STAGE4_DIR:-${DEFAULT_STAGE4_DIR}}"
+REJECTED_INPUT="${REJECTED_INPUT:-${STAGE3_DIR}/rejected_for_repair.jsonl}"
+ACCEPTED_INPUT="${ACCEPTED_INPUT:-${STAGE3_DIR}/validated_preferences.jsonl}"
+REPAIR_OUT="${REPAIR_OUT:-${STAGE4_DIR}/repair_records.jsonl}"
+REPAIRED_PREFERENCES_OUT="${REPAIRED_PREFERENCES_OUT:-${STAGE4_DIR}/repaired_preferences.jsonl}"
+FINAL_PREFERENCES_OUT="${FINAL_PREFERENCES_OUT:-${STAGE4_DIR}/final_preference_pairs.jsonl}"
+STATS_OUT="${STATS_OUT:-${STAGE4_DIR}/stats.json}"
 BACKEND="${BACKEND:-llava}"
 MODEL_PATH="${MODEL_PATH:-models/llava-v1.5-7b}"
 IMAGE_ROOT="${IMAGE_ROOT:-hsa_dpo/data/images}"
+
+printf 'Stage 4 repair mode: %s\n' "${EXPERIMENT_MODE}"
+printf 'Stage 4 repair input: %s\n' "${REJECTED_INPUT}"
+printf 'Stage 4 final preferences: %s\n' "${FINAL_PREFERENCES_OUT}"
 
 CMD=(
   python -m fg_pipeline.paper.run_released_pref_stage4_repair
@@ -35,6 +58,7 @@ CMD=(
   --repaired-preferences-out "${REPAIRED_PREFERENCES_OUT}"
   --final-preferences-out "${FINAL_PREFERENCES_OUT}"
   --stats-out "${STATS_OUT}"
+  --experiment-mode "${EXPERIMENT_MODE}"
   --backend "${BACKEND}"
   --image-root "${IMAGE_ROOT}"
 )

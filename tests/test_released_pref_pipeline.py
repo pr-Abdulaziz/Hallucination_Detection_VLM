@@ -8,7 +8,9 @@ from pathlib import Path
 from fg_pipeline.io_utils import write_jsonl
 from fg_pipeline.paper.run_released_pref_stage3_validate import (
     _Stats,
+    _build_validation_prompt,
     _iter_rows,
+    _prompt_version,
     _validate_row,
 )
 from fg_pipeline.paper.run_released_pref_stage4_repair import main as repair_main
@@ -47,6 +49,14 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 class ReleasedPreferenceValidationTests(unittest.TestCase):
+    def test_two_shot_prompt_adds_calibration_examples(self) -> None:
+        prompt = _build_validation_prompt(_preference_row(), prompt_mode="two_shot")
+
+        self.assertIn("Example 1:", prompt)
+        self.assertIn("Example 2:", prompt)
+        self.assertIn("Target pair to judge:", prompt)
+        self.assertEqual(_prompt_version("two_shot"), "released_pref_validation_2shot_v1")
+
     def test_either_rule_accepts_when_one_judge_approves(self) -> None:
         row = _preference_row()
         preference, audit = _validate_row(

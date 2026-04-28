@@ -1,0 +1,10 @@
+{
+  "input_stage3_dir": "output/fghd/released_pref_stage3_gemini100_20260427_171235",
+  "stderr": "output\\fghd\\released_pref_stage4_openai100_throttled_20260427_173716\\run.err.log",
+  "command": "python -m fg_pipeline.paper.run_released_pref_stage4_repair --backend openai --openai-model gpt-4.1 --workers 100 --min-request-interval-seconds 4.0 --max-output-tokens 256",
+  "output_dir": "output/fghd/released_pref_stage4_openai100_throttled_20260427_173716",
+  "started_at": "2026-04-27T17:37:16.3959134+03:00",
+  "pid": 23288,
+  "stdout": "output\\fghd\\released_pref_stage4_openai100_throttled_20260427_173716\\run.out.log",
+  "stage": "stage4"
+}

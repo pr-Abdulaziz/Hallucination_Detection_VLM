@@ -1,0 +1,5 @@
+Released pref Stage 3 validated 8386 row(s): 1622 kept, 6329 for repair, 435 removed
+Accepted preferences -> output\fghd\released_pref_stage3_gemini100_20260427_171235\validated_preferences.jsonl
+Rejected for repair -> output\fghd\released_pref_stage3_gemini100_20260427_171235\rejected_for_repair.jsonl
+Removed preferences -> output\fghd\released_pref_stage3_gemini100_20260427_171235\removed_preferences.jsonl
+Validation stats -> output\fghd\released_pref_stage3_gemini100_20260427_171235\stats.json

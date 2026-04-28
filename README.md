@@ -64,15 +64,22 @@ The project uses two preference-data paths:
 
 **Direct preference path:** released preference pairs are used directly for DPO/HSA-DPO training.
 
-**Judged preference path:** released preference pairs are checked using hosted LVLM/LLM judge models such as Gemini and GPT. Accepted pairs continue to training. Rejected pairs can be repaired with LLaVA and merged back into a checked preference set.
+**Judged preference path:** released preference pairs are checked using hosted LVLM/LLM judge models such as Gemini and GPT. The code supports two judge prompting modes: `zero_shot`, which is the paper baseline already used in the reported experiment, and `two_shot`, where two calibration examples are shown before each target pair. Accepted pairs continue to training. Rejected pairs can be repaired with LLaVA and merged back into a checked preference set.
+
+The default judge and repair models are kept the same across zero-shot and two-shot runs for a fair comparison:
+
+| Component | Default model |
+| --- | --- |
+| Gemini judge | `gemini-2.5-flash-lite` |
+| OpenAI judge | `gpt-4o-mini` |
+| Local repair model | `models/llava-v1.5-7b` |
 
 Important output locations:
 
-```text
-output/fghd/released_pref_stage3/validated_preferences.jsonl
-output/fghd/released_pref_stage3/rejected_for_repair.jsonl
-output/fghd/released_pref_stage4/final_preference_pairs.jsonl
-```
+| Mode | Stage 3 output | Stage 4 output |
+| --- | --- | --- |
+| `zero_shot` | `output/fghd/released_pref_stage3/` | `output/fghd/released_pref_stage4/` |
+| `two_shot` | `output/fghd/released_pref_stage3_2shot_experiment/` | `output/fghd/released_pref_stage4_2shot_experiment/` |
 
 API keys are never stored in this repository. Put local credentials in `.env` or environment variables only.
 
@@ -95,6 +102,7 @@ Typical Stage 5 outputs:
 output/fghd/exp_direct_paper_hsa_b32_e1/
 output/fghd/exp_direct_normal_dpo_b32_e1/
 output/fghd/released_pref_stage5_hsa_dpo/
+output/fghd/released_pref_stage5_2shot_experiment/
 ```
 
 ## Repository Structure
@@ -171,22 +179,60 @@ bash scripts/run_paper_stage2_detector_dataset.sh
 
 ### Judged preference path
 
-Run released-preference validation:
+Run zero-shot released-preference validation:
 
 ```bash
-API_JUDGE=gemini_openai bash scripts/run_released_pref_stage3_validate.sh
+SHOT_MODE=zero_shot API_JUDGE=gemini_openai bash scripts/run_released_pref_stage3_validate.sh
 ```
 
-Repair rejected rows with LLaVA:
+Run 2-shot released-preference validation:
 
 ```bash
-bash scripts/run_released_pref_stage4_repair.sh
+SHOT_MODE=two_shot API_JUDGE=gemini_openai bash scripts/run_released_pref_stage3_validate.sh
 ```
 
-Run the combined released-preference path:
+Use `WORKERS=3` for the faster 2-shot run while keeping API pressure moderate:
 
 ```bash
-bash scripts/run_released_pref_pipeline.sh
+SHOT_MODE=two_shot WORKERS=3 API_JUDGE=gemini_openai bash scripts/run_released_pref_stage3_validate.sh
+```
+
+This writes the new 2-shot preference files to:
+
+```text
+output/fghd/released_pref_stage3_2shot_experiment/
+```
+
+Repair rejected rows with LLaVA using the same mode:
+
+```bash
+SHOT_MODE=two_shot bash scripts/run_released_pref_stage4_repair.sh
+```
+
+Verify the repaired 2-shot rows with the same repair-verification model used in the main experiment:
+
+```bash
+SHOT_MODE=two_shot OPENAI_MODEL=gpt-4.1-mini bash scripts/run_released_pref_stage5_openai_verify.sh
+```
+
+The final 2-shot verified preference file is saved separately at:
+
+```text
+output/fghd/released_pref_stage5_openai_verify_2shot_experiment/final_verified_preference_pairs.jsonl
+```
+
+Run the full path by mode:
+
+```bash
+SHOT_MODE=zero_shot bash scripts/run_released_pref_pipeline.sh
+SHOT_MODE=two_shot bash scripts/run_released_pref_pipeline.sh
+```
+
+Convenience wrappers are also available:
+
+```bash
+bash scripts/run_released_pref_zero_shot_pipeline.sh
+bash scripts/run_released_pref_2shot_pipeline.sh
 ```
 
 ### Direct training path

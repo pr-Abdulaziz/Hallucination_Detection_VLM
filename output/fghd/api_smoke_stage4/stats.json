@@ -1,0 +1,20 @@
+{
+  "accepted_input": "output\\fghd\\api_smoke_stage3\\validated_preferences.jsonl",
+  "accepted_rows": 2,
+  "backend": "openai",
+  "empty_rewrite": 0,
+  "final_preference_rows": 3,
+  "final_preferences_out": "output\\fghd\\api_smoke_stage4\\final_preference_pairs.jsonl",
+  "identical_to_rejected": 0,
+  "input_rows": 1,
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_strong_repair_check_fewshot_v3",
+  "rejected_input": "output\\fghd\\api_smoke_stage3\\rejected_for_repair.jsonl",
+  "removed_rows": 0,
+  "repair_out": "output\\fghd\\api_smoke_stage4\\repair_records.jsonl",
+  "repair_records_emitted": 1,
+  "repair_rows_processed": 1,
+  "repaired_preferences_out": "output\\fghd\\api_smoke_stage4\\repaired_preferences.jsonl",
+  "repaired_rows": 1,
+  "stage": "released_pref_stage4_repair"
+}

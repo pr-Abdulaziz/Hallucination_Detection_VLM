@@ -1,0 +1,14 @@
+{
+  "min_request_interval_seconds": 2.0,
+  "command": "python -m fg_pipeline.paper.run_released_pref_stage4_repair --backend gemini --gemini-model gemini-2.5-pro --workers 50 --min-request-interval-seconds 2.0 --max-output-tokens 256 --retries 5",
+  "model": "gemini-2.5-pro",
+  "backend": "gemini",
+  "stdout": "output\\fghd\\released_pref_stage4_gemini25pro_w50_20260427_190425\\run.out.log",
+  "pid": 39128,
+  "stderr": "output\\fghd\\released_pref_stage4_gemini25pro_w50_20260427_190425\\run.err.log",
+  "input_stage3_dir": "output/fghd/released_pref_stage3_gemini100_20260427_171235",
+  "output_dir": "output/fghd/released_pref_stage4_gemini25pro_w50_20260427_190425",
+  "started_at": "2026-04-27T19:04:25.2414616+03:00",
+  "stage": "stage4",
+  "workers": 50
+}

@@ -1,0 +1,12 @@
+{
+  "benchmark": "amber",
+  "model_id": "direct_normal_dpo_b32_e1",
+  "metrics": {
+    "amber_chair": 5.2,
+    "amber_cover": 49.9,
+    "amber_hal": 25.2,
+    "amber_cog": 2.5
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+}

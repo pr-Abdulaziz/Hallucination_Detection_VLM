@@ -1,0 +1,10 @@
+{
+  "benchmark": "object_halbench",
+  "model_id": "ours_stage5_lora",
+  "metrics": {
+    "chairs": 60.0,
+    "chairi": 10.81081081081081
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+}

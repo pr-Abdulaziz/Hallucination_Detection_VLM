@@ -1,0 +1,27 @@
+{
+  "accepted_out": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\validated_preferences.jsonl",
+  "accepted_rows": 1622,
+  "api_judge": "gemini",
+  "audit_out": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\judgement_records.jsonl",
+  "decision_counts": {
+    "keep": 1622,
+    "remove": 435,
+    "repair": 6329
+  },
+  "decision_rule": "either",
+  "input_path": "hsa_dpo\\data\\hsa_dpo_preference_llava1dot5.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_rationale_detector_fewshot_v3",
+  "rejected_out": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\rejected_for_repair.jsonl",
+  "removed_out": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\removed_preferences.jsonl",
+  "removed_rows": 435,
+  "repair_rows": 6329,
+  "stage": "released_pref_stage3_validation",
+  "total_rows": 8386,
+  "vote_counts": {
+    "gemini:keep": 1622,
+    "gemini:remove": 435,
+    "gemini:repair": 6329
+  },
+  "workers": 100
+}

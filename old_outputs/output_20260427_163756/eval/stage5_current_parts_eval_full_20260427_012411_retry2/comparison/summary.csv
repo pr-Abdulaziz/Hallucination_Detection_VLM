@@ -1,0 +1,11 @@
+benchmark,metric,direction,baseline_value,our_value,paper_reference_value,delta_vs_baseline,relative_delta_vs_baseline,strictly_comparable,baseline_row_name,paper_row_name,comparison_note
+amber,amber_chair,lower_better,7.7,5.5,2.1,-2.2,-0.285714,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,local AMBER generative evaluation; automatic and no external judge API
+amber,amber_cog,lower_better,4.3,2.5,1.2,-1.8,-0.418605,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,local AMBER generative evaluation; automatic and no external judge API
+amber,amber_cover,higher_better,51.7,50.0,47.3,-1.7,-0.032882,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,local AMBER generative evaluation; automatic and no external judge API
+amber,amber_hal,lower_better,35.9,25.1,13.4,-10.8,-0.300836,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,local AMBER generative evaluation; automatic and no external judge API
+object_halbench,chairi,lower_better,15.723794,11.73516,3.2,-3.988634,-0.253669,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction
+object_halbench,chairs,lower_better,53.0,38.0,5.3,-15.0,-0.283019,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction
+pope_adv,accuracy,higher_better,85.133333,85.033333,,-0.1,-0.001175,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,no paper reference row
+pope_adv,f1,higher_better,84.184397,83.912576,84.9,-0.271821,-0.003229,True,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,
+pope_adv,precision,higher_better,89.924242,90.70488,,0.780638,0.008681,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,no paper reference row
+pope_adv,recall,higher_better,79.133333,78.066667,,-1.066667,-0.013479,False,llava15_base_7b,HSA-DPO w/ LLaVA-1.5,no paper reference row

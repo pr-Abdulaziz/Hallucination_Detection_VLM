@@ -1,0 +1,22 @@
+{
+  "accepted_input": "C:\\Users\\ahrhq\\ProjectFiles\\Fine-Grained-Hallucination-Detection-and-Severity-Aware-Mitigation-in-Vision-Language-Models\\output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\validated_preferences.jsonl",
+  "accepted_rows": 1622,
+  "backend": "gemini",
+  "empty_rewrite": 0,
+  "final_preference_rows": 1622,
+  "final_preferences_out": "output\\fghd\\stage4_gemini25pro_quality_check_20260427_191302\\final_preference_pairs.jsonl",
+  "identical_to_rejected": 0,
+  "input_rows": 10,
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_strong_repair_check_fewshot_v3",
+  "rejected_input": "C:\\Users\\ahrhq\\ProjectFiles\\Fine-Grained-Hallucination-Detection-and-Severity-Aware-Mitigation-in-Vision-Language-Models\\output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\rejected_for_repair.jsonl",
+  "removed_rows": 10,
+  "repair_errors": 10,
+  "repair_out": "output\\fghd\\stage4_gemini25pro_quality_check_20260427_191302\\repair_records.jsonl",
+  "repair_records_emitted": 0,
+  "repair_rows_processed": 10,
+  "repaired_preferences_out": "output\\fghd\\stage4_gemini25pro_quality_check_20260427_191302\\repaired_preferences.jsonl",
+  "repaired_rows": 0,
+  "stage": "released_pref_stage4_repair",
+  "workers": 5
+}

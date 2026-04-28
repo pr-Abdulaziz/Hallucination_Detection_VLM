@@ -13,14 +13,27 @@ from fg_pipeline.paper.common import PAPER_PIPELINE_VERSION, normalize_space
 from fg_pipeline.stage2.backends import LlavaRewriteBackend, TemplateRewriteBackend
 
 
-DEFAULT_REJECTED = Path("output/fghd/released_pref_stage3/rejected_for_repair.jsonl")
-DEFAULT_ACCEPTED = Path("output/fghd/released_pref_stage3/validated_preferences.jsonl")
+ZERO_SHOT_STAGE3_DIR = Path("output/fghd/released_pref_stage3")
+TWO_SHOT_STAGE3_DIR = Path("output/fghd/released_pref_stage3_2shot_experiment")
+ZERO_SHOT_OUTPUT_DIR = Path("output/fghd/released_pref_stage4")
+TWO_SHOT_OUTPUT_DIR = Path("output/fghd/released_pref_stage4_2shot_experiment")
+DEFAULT_EXPERIMENT_MODE = "zero_shot"
+DEFAULT_REJECTED = ZERO_SHOT_STAGE3_DIR / "rejected_for_repair.jsonl"
+DEFAULT_ACCEPTED = ZERO_SHOT_STAGE3_DIR / "validated_preferences.jsonl"
 DEFAULT_IMAGE_ROOT = Path("hsa_dpo/data/images")
-DEFAULT_OUTPUT_DIR = Path("output/fghd/released_pref_stage4")
+DEFAULT_OUTPUT_DIR = ZERO_SHOT_OUTPUT_DIR
 DEFAULT_REPAIRS = DEFAULT_OUTPUT_DIR / "repair_records.jsonl"
 DEFAULT_REPAIRED_PREFS = DEFAULT_OUTPUT_DIR / "repaired_preferences.jsonl"
 DEFAULT_FINAL_PREFS = DEFAULT_OUTPUT_DIR / "final_preference_pairs.jsonl"
 DEFAULT_STATS = DEFAULT_OUTPUT_DIR / "stats.json"
+STAGE3_DIRS = {
+    "zero_shot": ZERO_SHOT_STAGE3_DIR,
+    "two_shot": TWO_SHOT_STAGE3_DIR,
+}
+OUTPUT_DIRS = {
+    "zero_shot": ZERO_SHOT_OUTPUT_DIR,
+    "two_shot": TWO_SHOT_OUTPUT_DIR,
+}
 
 PROMPT_VERSION = "released_pref_repair_v1"
 
@@ -29,12 +42,24 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Repair API-rejected released preference pairs with LLaVA and merge with accepted pairs.",
     )
-    parser.add_argument("--rejected-input", type=Path, default=DEFAULT_REJECTED)
-    parser.add_argument("--accepted-input", type=Path, default=DEFAULT_ACCEPTED)
-    parser.add_argument("--repair-out", type=Path, default=DEFAULT_REPAIRS)
-    parser.add_argument("--repaired-preferences-out", type=Path, default=DEFAULT_REPAIRED_PREFS)
-    parser.add_argument("--final-preferences-out", type=Path, default=DEFAULT_FINAL_PREFS)
-    parser.add_argument("--stats-out", type=Path, default=DEFAULT_STATS)
+    parser.add_argument(
+        "--experiment-mode",
+        choices=("zero_shot", "two_shot"),
+        default=DEFAULT_EXPERIMENT_MODE,
+        help="Preference experiment path to consume. Select two_shot for the few-shot validation outputs.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Base repair output directory. Defaults to an experiment-mode-specific folder.",
+    )
+    parser.add_argument("--rejected-input", type=Path, default=None)
+    parser.add_argument("--accepted-input", type=Path, default=None)
+    parser.add_argument("--repair-out", type=Path, default=None)
+    parser.add_argument("--repaired-preferences-out", type=Path, default=None)
+    parser.add_argument("--final-preferences-out", type=Path, default=None)
+    parser.add_argument("--stats-out", type=Path, default=None)
     parser.add_argument("--backend", choices=("template", "llava"), default="llava")
     parser.add_argument("--model-path", type=str, default=None)
     parser.add_argument("--model-base", type=str, default=None)
@@ -45,6 +70,23 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--strict", action="store_true")
     return parser
+
+
+def _resolve_paths(args: argparse.Namespace) -> None:
+    stage3_dir = STAGE3_DIRS.get(args.experiment_mode, ZERO_SHOT_STAGE3_DIR)
+    output_dir = args.output_dir or OUTPUT_DIRS.get(args.experiment_mode, ZERO_SHOT_OUTPUT_DIR)
+    if args.rejected_input is None:
+        args.rejected_input = stage3_dir / "rejected_for_repair.jsonl"
+    if args.accepted_input is None:
+        args.accepted_input = stage3_dir / "validated_preferences.jsonl"
+    if args.repair_out is None:
+        args.repair_out = output_dir / "repair_records.jsonl"
+    if args.repaired_preferences_out is None:
+        args.repaired_preferences_out = output_dir / "repaired_preferences.jsonl"
+    if args.final_preferences_out is None:
+        args.final_preferences_out = output_dir / "final_preference_pairs.jsonl"
+    if args.stats_out is None:
+        args.stats_out = output_dir / "stats.json"
 
 
 def _validation_feedback(row: dict[str, Any]) -> str:
@@ -225,6 +267,7 @@ def _read_all(path: Path) -> list[dict[str, Any]]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    _resolve_paths(args)
     if not args.rejected_input.exists():
         print(f"Rejected preference input not found: {args.rejected_input}", file=sys.stderr)
         return 2
@@ -255,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         "paper_pipeline_version": PAPER_PIPELINE_VERSION,
         "stage": "released_pref_stage4_repair",
         "prompt_version": PROMPT_VERSION,
+        "experiment_mode": args.experiment_mode,
         "backend": backend.name,
         "accepted_input": str(args.accepted_input),
         "rejected_input": str(args.rejected_input),

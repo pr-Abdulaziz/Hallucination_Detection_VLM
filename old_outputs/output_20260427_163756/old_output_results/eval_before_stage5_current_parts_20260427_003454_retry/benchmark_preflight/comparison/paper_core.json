@@ -1,0 +1,59 @@
+{
+  "models": [
+    {
+      "model_id": "llava15_base_13b",
+      "model_path": "models/llava-v1.5-13b",
+      "model_base": null,
+      "kind": "base",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "ours_stage5_lora",
+      "model_path": "output/fghd/stage5_llava_margin",
+      "model_base": "models/llava-v1.5-13b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    }
+  ],
+  "availability": {
+    "mhalubench": {
+      "status": "skipped",
+      "note": "Missing MHaluBench predictions file: /workspace/Hallucination_Detection_VLM/playground/data/eval/mhalubench/predictions.jsonl"
+    },
+    "mfhallubench": {
+      "status": "skipped",
+      "note": "Missing MFHaluBench predictions file: /workspace/Hallucination_Detection_VLM/playground/data/eval/mfhallubench/predictions.jsonl"
+    },
+    "pope_adv": {
+      "status": "skipped",
+      "note": "Missing POPE question file: /workspace/Hallucination_Detection_VLM/playground/data/eval/pope/llava_pope_test.jsonl"
+    },
+    "object_halbench": {
+      "status": "skipped",
+      "note": "Missing Object HalBench question file: /workspace/Hallucination_Detection_VLM/playground/data/eval/object-halbench/questions.jsonl"
+    },
+    "amber": {
+      "status": "skipped",
+      "note": "Missing AMBER question file: /workspace/Hallucination_Detection_VLM/playground/data/eval/amber/query_generative.jsonl"
+    },
+    "mmhal_bench": {
+      "status": "skipped",
+      "note": "benchmark requires --openai-judge-model or OPENAI_JUDGE_MODEL"
+    },
+    "llava_bench_wild": {
+      "status": "skipped",
+      "note": "benchmark requires --openai-judge-model or OPENAI_JUDGE_MODEL"
+    },
+    "hss": {
+      "status": "skipped",
+      "note": "HSS local judged evaluation is supplemental only and requires a local judge backend implementation"
+    }
+  },
+  "rows": []
+}

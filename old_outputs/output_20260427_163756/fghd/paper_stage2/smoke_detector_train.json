@@ -1,0 +1,59 @@
+[
+  {
+    "id": 8501,
+    "image": "vg/images/2397397.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are the FAIF hallucination detector used for paper-path reproduction.\nGiven the image, the task context, and a candidate response, output exactly one of:\nNO HALLUCINATION\nor a fine-grained Tags/Scores report.\n\nTags format:\nTags:\n<object>\n1. hallucinated object claim\n<attribute>\n1. hallucinated attribute claim\n<relationship>\n1. hallucinated relationship claim\n\nScores format:\nScores:\n<object>\n1. Evidence span: Major (3 points): concise visual rationale\n\nSeverity rubric:\n- Minor (1 point): localized visual error that does not alter the main scene understanding.\n- Moderate (2 points): noticeable object, attribute, or relation error that changes part of the scene.\n- Major (3 points): central object, count, action, or relation error that substantially changes the answer.\nUse only Minor, Moderate, or Major.\n\nRules:\n- Use only the three hallucination types: object, attribute, relationship.\n- If no hallucination is present, output NO HALLUCINATION exactly.\n- Do not include confidence, calibration, prose preambles, or markdown.\n\nQuestion or task context:\nThere are at least six umbrellas of various sizes and colors, with some being red and others having different hues\n\nCandidate response:\nThere are at least six umbrellas of various sizes and colors, with some being red and others having different hues"
+      },
+      {
+        "from": "gpt",
+        "value": "Tags:\n<object>\n1 . The description mentions six umbrellas of various sizes and colors, but the image only mention red umbrellas being used in the dance performance\n<attribute>\n1 . The description mentions umbrellas of different hues, but the image only mention red umbrellas\nScores:\n<object>\n1 .  Umbrellas: Major (3 points): The number and variety of umbrellas is a significant detail, but its incorrect description fundamentally changes the scene's narrative\n<attribute>\n1 .  Umbrella hues: Moderate (2 points): The colors of the umbrellas are a noticeable detail, but their incorrect description does not fundamentally change the scene's narrative"
+      }
+    ],
+    "metadata": {
+      "source_stage": "paper_stage2_detector_dataset",
+      "prompt_version": "paper_detector_v1",
+      "is_hallucinated": true
+    }
+  },
+  {
+    "id": 8500,
+    "image": "vg/images/2397397.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are the FAIF hallucination detector used for paper-path reproduction.\nGiven the image, the task context, and a candidate response, output exactly one of:\nNO HALLUCINATION\nor a fine-grained Tags/Scores report.\n\nTags format:\nTags:\n<object>\n1. hallucinated object claim\n<attribute>\n1. hallucinated attribute claim\n<relationship>\n1. hallucinated relationship claim\n\nScores format:\nScores:\n<object>\n1. Evidence span: Major (3 points): concise visual rationale\n\nSeverity rubric:\n- Minor (1 point): localized visual error that does not alter the main scene understanding.\n- Moderate (2 points): noticeable object, attribute, or relation error that changes part of the scene.\n- Major (3 points): central object, count, action, or relation error that substantially changes the answer.\nUse only Minor, Moderate, or Major.\n\nRules:\n- Use only the three hallucination types: object, attribute, relationship.\n- If no hallucination is present, output NO HALLUCINATION exactly.\n- Do not include confidence, calibration, prose preambles, or markdown.\n\nQuestion or task context:\nThe image features a group of women standing on a sidewalk, each holding an umbrella\n\nCandidate response:\nThe image features a group of women standing on a sidewalk, each holding an umbrella"
+      },
+      {
+        "from": "gpt",
+        "value": "Tags:\n<object>\n1 . The women are not standing on a sidewalk, they are performing a dance routine\nScores:\n<object>\n1 .  Sidewalk: Major (3 points): The location of the women is a significant detail in the description, and its incorrect portrayal fundamentally alters the viewer's understanding of the scene"
+      }
+    ],
+    "metadata": {
+      "source_stage": "paper_stage2_detector_dataset",
+      "prompt_version": "paper_detector_v1",
+      "is_hallucinated": true
+    }
+  },
+  {
+    "id": 0,
+    "image": "vg/images/713025.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are the FAIF hallucination detector used for paper-path reproduction.\nGiven the image, the task context, and a candidate response, output exactly one of:\nNO HALLUCINATION\nor a fine-grained Tags/Scores report.\n\nTags format:\nTags:\n<object>\n1. hallucinated object claim\n<attribute>\n1. hallucinated attribute claim\n<relationship>\n1. hallucinated relationship claim\n\nScores format:\nScores:\n<object>\n1. Evidence span: Major (3 points): concise visual rationale\n\nSeverity rubric:\n- Minor (1 point): localized visual error that does not alter the main scene understanding.\n- Moderate (2 points): noticeable object, attribute, or relation error that changes part of the scene.\n- Major (3 points): central object, count, action, or relation error that substantially changes the answer.\nUse only Minor, Moderate, or Major.\n\nRules:\n- Use only the three hallucination types: object, attribute, relationship.\n- If no hallucination is present, output NO HALLUCINATION exactly.\n- Do not include confidence, calibration, prose preambles, or markdown.\n\nQuestion or task context:\nThe clock tower is adorned with a gold cross, making it a prominent and eye-catching feature\n\nCandidate response:\nThe clock tower is adorned with a gold cross, making it a prominent and eye-catching feature"
+      },
+      {
+        "from": "gpt",
+        "value": "NO HALLUCINATION"
+      }
+    ],
+    "metadata": {
+      "source_stage": "paper_stage2_detector_dataset",
+      "prompt_version": "paper_detector_v1",
+      "is_hallucinated": false
+    }
+  }
+]

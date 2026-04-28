@@ -1,0 +1,74 @@
+{
+  "models": [
+    {
+      "model_id": "llava15_base_7b",
+      "model_path": "models/llava-v1.5-7b",
+      "model_base": null,
+      "kind": "base",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "direct_paper_hsa_b32_e1",
+      "model_path": "output/fghd/exp_direct_paper_hsa_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "direct_normal_dpo_b32_e1",
+      "model_path": "output/fghd/exp_direct_normal_dpo_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "api_verified_margin_hsa_b32_e1",
+      "model_path": "output/fghd/exp_api_verified_margin_hsa_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    }
+  ],
+  "availability": {
+    "pope_adv": {
+      "status": "ok",
+      "note": null
+    },
+    "object_halbench": {
+      "status": "ok",
+      "note": null
+    },
+    "amber": {
+      "status": "ok",
+      "note": null
+    }
+  },
+  "rows": [
+    {
+      "benchmark": "pope_adv",
+      "metric": "f1",
+      "direction": "higher_better",
+      "baseline_value": 84.184397,
+      "our_value": 83.912576,
+      "paper_reference_value": 84.9,
+      "delta_vs_baseline": -0.271821,
+      "relative_delta_vs_baseline": -0.003229,
+      "strictly_comparable": true,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": null
+    }
+  ]
+}

@@ -118,7 +118,7 @@ With the LLaVA backend (GPU required):
 ```bash
 python -m fg_pipeline.stage2.run_stage2 \
   --backend llava \
-  --model-path models/llava-v1.5-13b \
+  --model-path models/llava-v1.5-7b \
   --output output/fghd/stage2/rewrites_llava.jsonl \
   --stats-out output/fghd/stage2/stats_llava.json
 ```
@@ -197,7 +197,7 @@ python -m fg_pipeline.stage4.run_stage4_repair \
 ```
 
 For smoke tests use `--backend template`. For research runs use
-`--backend llava --model-path models/llava-v1.5-13b`.
+`--backend llava --model-path models/llava-v1.5-7b`.
 
 ## Running Stage 5
 

@@ -1,0 +1,16 @@
+{
+  "critique_count_by_severity": {
+    "major": 3328,
+    "minor": 969,
+    "moderate": 2895,
+    "unknown": 557
+  },
+  "critique_count_by_type": {
+    "attribute": 951,
+    "object": 4425,
+    "relationship": 2373
+  },
+  "hallucinated_rows": 7643,
+  "non_hallucinated_rows": 8500,
+  "total_rows": 16143
+}

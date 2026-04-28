@@ -1,0 +1,14 @@
+{
+  "backend": "llava_api_critic",
+  "input_path": "output/fghd/paper_stage3/detections.jsonl",
+  "input_rows": 16143,
+  "output_path": "output/fghd/paper_stage4/rewrite_records.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "predicted_non_hallucinated_skipped": 16143,
+  "preference_pairs_emitted": 0,
+  "preferences_out": "output/fghd/paper_stage4/preference_pairs.jsonl",
+  "prompt_version": "paper_rewrite_v1",
+  "rewrite_records_emitted": 0,
+  "rewrite_rows_processed": 0,
+  "skipped_rows_by_reason": {}
+}

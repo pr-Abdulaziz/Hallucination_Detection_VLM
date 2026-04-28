@@ -1,0 +1,4 @@
+#< CLIXML
+Released pref Stage 4 repair (100 workers): 0it [00:00, ?it/s]Released pref Stage 4 repair (100 workers): 0it [00:09, ?it/s]
+Released pref Stage 4 repair failed: OpenAI repair HTTP 429: { "error": { "message": "Rate limit reached for gpt-4.1 in organization org-g2wS9LgE7SqJeoq4r67Yphy8 on tokens per min (TPM): Limit 30000, Used 30000, Requested 1787. Please try again in 3.574s. Visit https://platform.openai.com/account/rate-limits to learn more.", "type": "tokens", "param": null, "code": "rate_limit_exceeded" } }
+<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><Obj S="progress" RefId="0"><TN RefId="0"><T>System.Management.Automation.PSCustomObject</T><T>System.Object</T></TN><MS><I64 N="SourceId">1</I64><PR N="Record"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj></Objs>

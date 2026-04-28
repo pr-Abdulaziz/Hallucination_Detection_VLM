@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable
 from urllib import error as urllib_error
@@ -26,13 +27,27 @@ from fg_pipeline.paper.common import PAPER_PIPELINE_VERSION, normalize_space
 
 DEFAULT_INPUT = Path("hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl")
 DEFAULT_IMAGE_ROOT = Path("hsa_dpo/data/images")
-DEFAULT_OUTPUT_DIR = Path("output/fghd/released_pref_stage3")
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+ZERO_SHOT_OUTPUT_DIR = Path("output/fghd/released_pref_stage3")
+TWO_SHOT_OUTPUT_DIR = Path("output/fghd/released_pref_stage3_2shot_experiment")
+DEFAULT_OUTPUT_DIR = ZERO_SHOT_OUTPUT_DIR
 DEFAULT_ACCEPTED = DEFAULT_OUTPUT_DIR / "validated_preferences.jsonl"
 DEFAULT_REJECTED = DEFAULT_OUTPUT_DIR / "rejected_for_repair.jsonl"
 DEFAULT_AUDIT = DEFAULT_OUTPUT_DIR / "judgement_records.jsonl"
 DEFAULT_STATS = DEFAULT_OUTPUT_DIR / "stats.json"
 
 PROMPT_VERSION = "released_pref_validation_v1"
+TWO_SHOT_PROMPT_VERSION = "released_pref_validation_2shot_v1"
+DEFAULT_PROMPT_MODE = "zero_shot"
+PROMPT_VERSIONS = {
+    "zero_shot": PROMPT_VERSION,
+    "two_shot": TWO_SHOT_PROMPT_VERSION,
+}
+OUTPUT_DIRS = {
+    "zero_shot": ZERO_SHOT_OUTPUT_DIR,
+    "two_shot": TWO_SHOT_OUTPUT_DIR,
+}
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -41,22 +56,35 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--image-root", type=Path, default=DEFAULT_IMAGE_ROOT)
-    parser.add_argument("--accepted-out", type=Path, default=DEFAULT_ACCEPTED)
-    parser.add_argument("--rejected-out", type=Path, default=DEFAULT_REJECTED)
-    parser.add_argument("--audit-out", type=Path, default=DEFAULT_AUDIT)
-    parser.add_argument("--stats-out", type=Path, default=DEFAULT_STATS)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Base output directory. Defaults to a prompt-mode-specific folder.",
+    )
+    parser.add_argument("--accepted-out", type=Path, default=None)
+    parser.add_argument("--rejected-out", type=Path, default=None)
+    parser.add_argument("--audit-out", type=Path, default=None)
+    parser.add_argument("--stats-out", type=Path, default=None)
     parser.add_argument(
         "--api-judge",
         type=str,
         default="gemini_openai",
         help="Judge family: gemini, openai, or gemini_openai.",
     )
-    parser.add_argument("--gemini-model", type=str, default="gemini-2.5-flash-lite")
-    parser.add_argument("--openai-model", type=str, default="gpt-4o-mini")
+    parser.add_argument("--gemini-model", type=str, default=DEFAULT_GEMINI_MODEL)
+    parser.add_argument("--openai-model", type=str, default=DEFAULT_OPENAI_MODEL)
     parser.add_argument("--decision-rule", choices=("either", "both"), default="either")
+    parser.add_argument(
+        "--prompt-mode",
+        choices=("zero_shot", "two_shot"),
+        default=DEFAULT_PROMPT_MODE,
+        help="Validation prompt style. Select zero_shot for the paper baseline or two_shot for the few-shot experiment.",
+    )
     parser.add_argument("--max-output-tokens", type=int, default=None)
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--workers", type=int, default=1, help="Number of preference rows to validate concurrently.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--strict", action="store_true")
     return parser
@@ -102,7 +130,51 @@ def _image_for_row(row: dict[str, Any], image_root: Path) -> Path | None:
     return None
 
 
-def _build_validation_prompt(row: dict[str, Any]) -> str:
+def _prompt_version(prompt_mode: str) -> str:
+    return PROMPT_VERSIONS.get(prompt_mode, PROMPT_VERSION)
+
+
+def _output_dir(prompt_mode: str) -> Path:
+    return OUTPUT_DIRS.get(prompt_mode, DEFAULT_OUTPUT_DIR)
+
+
+def _resolve_output_paths(args: argparse.Namespace) -> None:
+    output_dir = args.output_dir or _output_dir(args.prompt_mode)
+    if args.accepted_out is None:
+        args.accepted_out = output_dir / "validated_preferences.jsonl"
+    if args.rejected_out is None:
+        args.rejected_out = output_dir / "rejected_for_repair.jsonl"
+    if args.audit_out is None:
+        args.audit_out = output_dir / "judgement_records.jsonl"
+    if args.stats_out is None:
+        args.stats_out = output_dir / "stats.json"
+
+
+def _two_shot_examples() -> str:
+    return (
+        "Two calibration examples follow. They are text-only examples for the decision rubric; "
+        "do not assume their visual details are present in the target image.\n\n"
+        "Example 1:\n"
+        "Question:\nDescribe the image.\n"
+        "Rejected/original response:\nThe image shows a child holding a red umbrella while a dog walks nearby.\n"
+        "Chosen/rewrite response:\nThe image shows a child holding an umbrella.\n"
+        "Original hallucination tags and severity:\n"
+        "object hallucination: dog nearby; attribute hallucination: red umbrella; severity major\n"
+        "Expected JSON:\n"
+        '{"approved": true, "reason": "The chosen response removes the unsupported dog and color claims while preserving the grounded umbrella detail."}\n\n'
+        "Example 2:\n"
+        "Question:\nWhat is happening in the scene?\n"
+        "Rejected/original response:\nA man is sitting on a bench with a bicycle beside him.\n"
+        "Chosen/rewrite response:\nA man is sitting on a bench beside a motorcycle in a park.\n"
+        "Original hallucination tags and severity:\n"
+        "object hallucination: bicycle beside him; severity moderate\n"
+        "Expected JSON:\n"
+        '{"approved": false, "reason": "The chosen response introduces unsupported motorcycle and park details, so it is not a reliable improvement."}\n\n'
+    )
+
+
+def _build_validation_prompt(row: dict[str, Any], *, prompt_mode: str = "zero_shot") -> str:
+    example_block = _two_shot_examples() if prompt_mode == "two_shot" else ""
     return (
         "You are validating a hallucination-mitigation preference pair for a vision-language model.\n"
         "Use the image as the source of truth.\n"
@@ -115,6 +187,8 @@ def _build_validation_prompt(row: dict[str, Any]) -> str:
         "Reject when the chosen rewrite is still unsupported by the image, loses essential correct content, "
         "or is not clearly better than the rejected response.\n"
         "Be conservative, but do not reject only because the chosen response is shorter.\n\n"
+        f"{example_block}"
+        "Target pair to judge:\n"
         f"Question:\n{row.get('question', '')}\n\n"
         f"Rejected/original response:\n{row.get('rejected', '')}\n\n"
         f"Chosen/rewrite response:\n{row.get('chosen', '')}\n\n"
@@ -131,12 +205,14 @@ class _JudgeRuntime:
         *,
         image_root: Path,
         max_output_tokens: int | None,
+        prompt_mode: str = "zero_shot",
         temperature: float = 0.0,
         timeout_seconds: int = 60,
         retries: int = 3,
     ) -> None:
         self._image_root = image_root
         self._max_output_tokens = max_output_tokens
+        self._prompt_mode = prompt_mode
         self._temperature = temperature
         self._timeout_seconds = timeout_seconds
         self._retries = max(1, retries)
@@ -165,7 +241,7 @@ class _GeminiRuntime(_JudgeRuntime):
         image_path = _image_for_row(row, self._image_root)
         if image_path is not None:
             parts.append(self._image_part(image_path))
-        parts.append({"text": _build_validation_prompt(row)})
+        parts.append({"text": _build_validation_prompt(row, prompt_mode=self._prompt_mode)})
 
         generation_config: dict[str, Any] = {"temperature": self._temperature}
         if self._max_output_tokens is not None:
@@ -176,7 +252,7 @@ class _GeminiRuntime(_JudgeRuntime):
             text = str(raw["candidates"][0]["content"]["parts"][0]["text"]).strip()
         except (KeyError, IndexError, TypeError) as exc:
             raise ValueError(f"unexpected Gemini validation response: {_shorten(json.dumps(raw))}") from exc
-        return _judge_payload(self.family, text)
+        return _judge_payload(self.family, text, model=self._model)
 
     def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         url = (
@@ -227,7 +303,9 @@ class _OpenAIRuntime(_JudgeRuntime):
         }
 
     def judge(self, row: dict[str, Any]) -> dict[str, Any]:
-        content: list[dict[str, Any]] = [{"type": "text", "text": _build_validation_prompt(row)}]
+        content: list[dict[str, Any]] = [
+            {"type": "text", "text": _build_validation_prompt(row, prompt_mode=self._prompt_mode)}
+        ]
         image_path = _image_for_row(row, self._image_root)
         if image_path is not None:
             content.append(self._image_url_part(image_path))
@@ -243,7 +321,7 @@ class _OpenAIRuntime(_JudgeRuntime):
             text = str(raw["choices"][0]["message"]["content"]).strip()
         except (KeyError, IndexError, TypeError) as exc:
             raise ValueError(f"unexpected OpenAI validation response: {_shorten(json.dumps(raw))}") from exc
-        return _judge_payload(self.family, text)
+        return _judge_payload(self.family, text, model=self._model)
 
     def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
@@ -271,20 +349,24 @@ class _OpenAIRuntime(_JudgeRuntime):
         raise RuntimeError(f"OpenAI validation failed: {last_error}")
 
 
-def _judge_payload(family: str, raw_text: str) -> dict[str, Any]:
+def _judge_payload(family: str, raw_text: str, *, model: str | None = None) -> dict[str, Any]:
     parsed = _extract_json(raw_text)
-    return {
+    payload = {
         "family": family,
         "approved": bool(parsed.get("approved")),
         "reason": normalize_space(str(parsed.get("reason", ""))),
         "raw_output": raw_text,
     }
+    if model:
+        payload["model"] = model
+    return payload
 
 
 def _build_judges(args: argparse.Namespace) -> list[_JudgeRuntime]:
     common = {
         "image_root": args.image_root,
         "max_output_tokens": args.max_output_tokens,
+        "prompt_mode": args.prompt_mode,
         "temperature": 0.0,
         "timeout_seconds": args.timeout_seconds,
         "retries": args.retries,
@@ -308,6 +390,7 @@ def _validate_row(
     decision_rule: str,
     strict: bool,
     image_root: Path,
+    prompt_mode: str = "zero_shot",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     votes: list[dict[str, Any]] = []
     for judge in judges:
@@ -335,7 +418,8 @@ def _validate_row(
         {
             "source_stage": "released_pref_stage3_validation",
             "paper_pipeline_version": PAPER_PIPELINE_VERSION,
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": _prompt_version(prompt_mode),
+            "prompt_mode": prompt_mode,
             "decision_rule": decision_rule,
             "api_votes": votes,
         }
@@ -357,10 +441,24 @@ def _validate_row(
 
 
 class _Stats:
-    def __init__(self, *, input_path: str, api_judge: str, decision_rule: str) -> None:
+    def __init__(
+        self,
+        *,
+        input_path: str,
+        api_judge: str,
+        decision_rule: str,
+        prompt_mode: str = "zero_shot",
+        gemini_model: str | None = None,
+        openai_model: str | None = None,
+        workers: int = 1,
+    ) -> None:
         self.input_path = input_path
         self.api_judge = api_judge
         self.decision_rule = decision_rule
+        self.prompt_mode = prompt_mode
+        self.gemini_model = gemini_model
+        self.openai_model = openai_model
+        self.workers = workers
         self.total_rows = 0
         self.accepted_rows = 0
         self.rejected_rows = 0
@@ -380,9 +478,13 @@ class _Stats:
         return {
             "paper_pipeline_version": PAPER_PIPELINE_VERSION,
             "stage": "released_pref_stage3_validation",
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": _prompt_version(self.prompt_mode),
+            "prompt_mode": self.prompt_mode,
             "input_path": self.input_path,
             "api_judge": self.api_judge,
+            "gemini_model": self.gemini_model,
+            "openai_model": self.openai_model,
+            "workers": self.workers,
             "decision_rule": self.decision_rule,
             "total_rows": self.total_rows,
             "accepted_rows": self.accepted_rows,
@@ -401,20 +503,48 @@ def _iter_rows(
     image_root: Path,
     limit: int | None,
     total: int | None,
+    prompt_mode: str = "zero_shot",
+    workers: int = 1,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     audits: list[dict[str, Any]] = []
-    for index, row in enumerate(maybe_tqdm(rows, desc="Released pref Stage 3 validate", total=total)):
+    selected_rows: list[tuple[int, dict[str, Any]]] = []
+    for index, row in enumerate(rows):
         if limit is not None and index >= limit:
             break
+        selected_rows.append((index, row))
+
+    def validate_indexed(item: tuple[int, dict[str, Any]]) -> tuple[int, dict[str, Any], dict[str, Any]]:
+        index, row = item
         preference, audit = _validate_row(
             row,
             judges,
             decision_rule=decision_rule,
             strict=strict,
             image_root=image_root,
+            prompt_mode=prompt_mode,
         )
+        return index, preference, audit
+
+    workers = max(1, int(workers or 1))
+    results: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+    if workers == 1:
+        iterator = maybe_tqdm(selected_rows, desc="Released pref Stage 3 validate", total=total)
+        for item in iterator:
+            results.append(validate_indexed(item))
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(validate_indexed, item) for item in selected_rows]
+            iterator = maybe_tqdm(
+                as_completed(futures),
+                desc=f"Released pref Stage 3 validate ({workers} workers)",
+                total=len(futures),
+            )
+            for future in iterator:
+                results.append(future.result())
+
+    for _, preference, audit in sorted(results, key=lambda result: result[0]):
         stats.record(audit)
         audits.append(audit)
         if audit["approved"]:
@@ -426,6 +556,7 @@ def _iter_rows(
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    _resolve_output_paths(args)
     if not args.input.exists():
         print(f"Released preference input not found: {args.input}", file=sys.stderr)
         return 2
@@ -438,7 +569,15 @@ def main(argv: list[str] | None = None) -> int:
     total = count_jsonl_rows(args.input)
     if args.limit is not None:
         total = min(total, args.limit)
-    stats = _Stats(input_path=str(args.input), api_judge=args.api_judge, decision_rule=args.decision_rule)
+    stats = _Stats(
+        input_path=str(args.input),
+        api_judge=args.api_judge,
+        decision_rule=args.decision_rule,
+        prompt_mode=args.prompt_mode,
+        gemini_model=args.gemini_model,
+        openai_model=args.openai_model,
+        workers=args.workers,
+    )
     try:
         accepted, rejected, audits = _iter_rows(
             read_jsonl(args.input),
@@ -449,6 +588,8 @@ def main(argv: list[str] | None = None) -> int:
             image_root=args.image_root,
             limit=args.limit,
             total=total,
+            prompt_mode=args.prompt_mode,
+            workers=args.workers,
         )
     except Exception as exc:
         print(f"Released pref Stage 3 validation failed: {exc}", file=sys.stderr)

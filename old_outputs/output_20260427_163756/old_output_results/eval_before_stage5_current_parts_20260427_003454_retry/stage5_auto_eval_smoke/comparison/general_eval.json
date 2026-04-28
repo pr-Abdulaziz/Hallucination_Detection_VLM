@@ -1,0 +1,90 @@
+{
+  "stage_metrics": {
+    "stage3": {
+      "stage3_dir": "/workspace/Hallucination_Detection_VLM/output/fghd/stage3",
+      "total_input_rows": 7643,
+      "vote_rows_processed": 7643,
+      "preference_pairs_emitted": 98,
+      "dropped_rows": 7545,
+      "backend": "gemini_openai_two_vote",
+      "vote_count": 2,
+      "approvals_required": 2
+    },
+    "stage4": {
+      "stage4_dir": "/workspace/Hallucination_Detection_VLM/output/fghd/stage5_llava_margin",
+      "final_train_loss": 0.037
+    }
+  },
+  "benchmarks": [
+    {
+      "benchmark": "pope_adv",
+      "model_id": "llava15_base_13b",
+      "metrics": {
+        "f1": 80.0,
+        "pope_adv_f1": 80.0,
+        "precision": 100.0,
+        "recall": 66.66666666666666,
+        "accuracy": 80.0
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "ours_stage5_lora",
+      "metrics": {
+        "f1": 80.0,
+        "pope_adv_f1": 80.0,
+        "precision": 100.0,
+        "recall": 66.66666666666666,
+        "accuracy": 80.0
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "llava15_base_13b",
+      "metrics": {
+        "chairs": 20.0,
+        "chairi": 2.5
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "ours_stage5_lora",
+      "metrics": {
+        "chairs": 60.0,
+        "chairi": 10.81081081081081
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "llava15_base_13b",
+      "metrics": {
+        "amber_chair": 11.4,
+        "amber_cover": 40.6,
+        "amber_hal": 40.0,
+        "amber_cog": 0.0
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "ours_stage5_lora",
+      "metrics": {
+        "amber_chair": 16.3,
+        "amber_cover": 40.6,
+        "amber_hal": 60.0,
+        "amber_cog": 0.0
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    }
+  ]
+}

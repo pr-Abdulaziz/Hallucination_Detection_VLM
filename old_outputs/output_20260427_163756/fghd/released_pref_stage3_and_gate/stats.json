@@ -1,0 +1,14 @@
+{
+  "gemini_total": 8386,
+  "missing_vote_rows": 0,
+  "openai_total": 8386,
+  "outputs": {
+    "accepted_input": "output/fghd/released_pref_stage3_and_gate/passed_by_either.jsonl",
+    "audit": "output/fghd/released_pref_stage3_and_gate/audit_overlap.jsonl",
+    "rejected_input": "output/fghd/released_pref_stage3_and_gate/rejected_by_both.jsonl"
+  },
+  "passed_by_either": 7818,
+  "rejected_by_both": 568,
+  "source": "hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl",
+  "total_source_rows": 8386
+}

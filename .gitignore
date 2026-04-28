@@ -36,7 +36,6 @@ wheels/
 
 # Model weights
 /models/
-/old_outputs/
 checkpoint-*/
 **/checkpoint-*/
 **/global_step*/

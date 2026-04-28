@@ -1,0 +1,11 @@
+{
+  "backend": "template",
+  "empty_rewrites_skipped": 0,
+  "hallucinated_rows": 2,
+  "non_hallucinated_skipped": 1,
+  "preference_pairs_emitted": 2,
+  "prompt_version": "paper_rewrite_v1",
+  "rewrites_emitted": 2,
+  "stage": "paper_stage4_rewrite",
+  "total_input_rows": 3
+}

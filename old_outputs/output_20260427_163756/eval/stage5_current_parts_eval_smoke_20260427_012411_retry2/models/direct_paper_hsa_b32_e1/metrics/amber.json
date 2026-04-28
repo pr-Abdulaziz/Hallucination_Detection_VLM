@@ -1,0 +1,12 @@
+{
+  "benchmark": "amber",
+  "model_id": "direct_paper_hsa_b32_e1",
+  "metrics": {
+    "amber_chair": 0.0,
+    "amber_cover": 37.5,
+    "amber_hal": 0.0,
+    "amber_cog": 0.0
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+}

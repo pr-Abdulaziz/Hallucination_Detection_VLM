@@ -1,0 +1,17 @@
+{
+  "accepted_out": "output/fghd/released_pref_stage5_gemini_verify_smoke_pro/approved_repaired_preferences.jsonl",
+  "accepted_rows": 0,
+  "api_judge": "gemini",
+  "audit_out": "output/fghd/released_pref_stage5_gemini_verify_smoke_pro/verification_records.jsonl",
+  "decision_rule": "either",
+  "input_path": "output/fghd/released_pref_stage4_and_gate/repaired_preferences.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "prompt_version": "released_pref_validation_v1",
+  "rejected_out": "output/fghd/released_pref_stage5_gemini_verify_smoke_pro/failed_repaired_preferences.jsonl",
+  "rejected_rows": 1,
+  "stage": "released_pref_stage3_validation",
+  "total_rows": 1,
+  "vote_counts": {
+    "gemini:False": 1
+  }
+}

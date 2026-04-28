@@ -1,0 +1,11 @@
+{
+  "backend": "released_annotations",
+  "critique_items": 3,
+  "detector_prompt_version": "detector_v1",
+  "input_path": "fg_pipeline\\data\\smoke_detection.jsonl",
+  "output_path": "output\\fghd\\paper_stage3\\smoke_detections.jsonl",
+  "paper_pipeline_version": "paper_faithful_v1",
+  "predicted_hallucinated_rows": 2,
+  "predicted_non_hallucinated_rows": 1,
+  "total_rows": 3
+}

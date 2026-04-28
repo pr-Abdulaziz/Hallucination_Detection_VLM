@@ -22,24 +22,28 @@ if [ -f "${ENV_FILE}" ]; then
 fi
 
 # Training configuration
-BATCH_SIZE="${BATCH_SIZE:-8}"
-EPOCH="${EPOCH:-2}"
+BATCH_SIZE="${BATCH_SIZE:-1}"
+EPOCH="${EPOCH:-4}"
 LEARNING_RATE="${LEARNING_RATE:-2e-6}"
 TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-16}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-}"
 MAX_STEPS="${MAX_STEPS:--1}"
 USE_CHOSEN_SCORE="${USE_CHOSEN_SCORE:-False}"
-USE_REJECTED_SCORE="${USE_REJECTED_SCORE:-True}"
-DPO_LOSS_TYPE="${DPO_LOSS_TYPE:-hsa_weighted}"
+USE_REJECTED_SCORE="${USE_REJECTED_SCORE:-False}"
+DPO_LOSS_TYPE="${DPO_LOSS_TYPE:-severity_margin}"
 SEVERITY_MARGIN_SCALE="${SEVERITY_MARGIN_SCALE:-0.5}"
 SEVERITY_SCORE_NORMALIZER="${SEVERITY_SCORE_NORMALIZER:-3.0}"
 
 # Project-local defaults. Override with env vars if needed.
 DATA_PATH="${DATA_PATH:-${REPO_ROOT}/hsa_dpo/data/hsa_dpo_preference_llava1dot5.jsonl}"
 IMAGE_FOLDER="${IMAGE_FOLDER:-${REPO_ROOT}/hsa_dpo/data/images}"
-MODEL_PATH="${MODEL_PATH:-${REPO_ROOT}/models/llava-v1.5-7b}"
+DEFAULT_MODEL_PATH="${REPO_ROOT}/models/llava-v1.5-7b"
+if [ ! -d "${DEFAULT_MODEL_PATH}" ] && [ -d "${REPO_ROOT}/models/llava-v1.5-13b" ]; then
+    DEFAULT_MODEL_PATH="${REPO_ROOT}/models/llava-v1.5-13b"
+fi
+MODEL_PATH="${MODEL_PATH:-${DEFAULT_MODEL_PATH}}"
 VISION_TOWER="${VISION_TOWER:-openai/clip-vit-large-patch14-336}"
-OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/output/hsa_dpo_llava}"
+OUTPUT_DIR="${OUTPUT_DIR:-${REPO_ROOT}/output/hsa_dpo_llava_margin}"
 DS_CONFIG="${DS_CONFIG:-${REPO_ROOT}/hsa_dpo/models/llava-v1_5/scripts/zero3.json}"
 
 detect_gpu_count() {

@@ -1,0 +1,13 @@
+{
+  "benchmark": "pope_adv",
+  "model_id": "direct_paper_hsa_b32_e1",
+  "metrics": {
+    "f1": 83.91257613758509,
+    "pope_adv_f1": 83.91257613758509,
+    "precision": 90.70487993803253,
+    "recall": 78.06666666666666,
+    "accuracy": 85.03333333333333
+  },
+  "comparable_to_paper": true,
+  "comparison_note": null
+}

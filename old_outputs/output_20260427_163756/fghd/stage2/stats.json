@@ -1,0 +1,7 @@
+{
+  "backend": "llava",
+  "hallucinated_rows": 7643,
+  "non_hallucinated_skipped": 8500,
+  "rewrites_emitted": 7643,
+  "total_input_rows": 16143
+}

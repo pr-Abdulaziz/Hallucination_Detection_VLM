@@ -1,0 +1,186 @@
+{
+  "models": [
+    {
+      "model_id": "llava15_base_7b",
+      "model_path": "models/llava-v1.5-7b",
+      "model_base": null,
+      "kind": "base",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "direct_paper_hsa_b32_e1",
+      "model_path": "output/fghd/exp_direct_paper_hsa_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "direct_normal_dpo_b32_e1",
+      "model_path": "output/fghd/exp_direct_normal_dpo_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    },
+    {
+      "model_id": "api_verified_margin_hsa_b32_e1",
+      "model_path": "output/fghd/exp_api_verified_margin_hsa_b32_e1",
+      "model_base": "models/llava-v1.5-7b",
+      "kind": "lora",
+      "conv_mode": "vicuna_v1",
+      "temperature": 0.0,
+      "num_beams": 1,
+      "max_new_tokens": 512
+    }
+  ],
+  "availability": {
+    "pope_adv": {
+      "status": "ok",
+      "note": null
+    },
+    "object_halbench": {
+      "status": "ok",
+      "note": null
+    },
+    "amber": {
+      "status": "ok",
+      "note": null
+    }
+  },
+  "rows": [
+    {
+      "benchmark": "amber",
+      "metric": "amber_chair",
+      "direction": "lower_better",
+      "baseline_value": 7.7,
+      "our_value": 5.5,
+      "paper_reference_value": 2.1,
+      "delta_vs_baseline": -2.2,
+      "relative_delta_vs_baseline": -0.285714,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "metric": "amber_cog",
+      "direction": "lower_better",
+      "baseline_value": 4.3,
+      "our_value": 2.5,
+      "paper_reference_value": 1.2,
+      "delta_vs_baseline": -1.8,
+      "relative_delta_vs_baseline": -0.418605,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "metric": "amber_cover",
+      "direction": "higher_better",
+      "baseline_value": 51.7,
+      "our_value": 50.0,
+      "paper_reference_value": 47.3,
+      "delta_vs_baseline": -1.7,
+      "relative_delta_vs_baseline": -0.032882,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "metric": "amber_hal",
+      "direction": "lower_better",
+      "baseline_value": 35.9,
+      "our_value": 25.1,
+      "paper_reference_value": 13.4,
+      "delta_vs_baseline": -10.8,
+      "relative_delta_vs_baseline": -0.300836,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "object_halbench",
+      "metric": "chairi",
+      "direction": "lower_better",
+      "baseline_value": 15.723794,
+      "our_value": 11.73516,
+      "paper_reference_value": 3.2,
+      "delta_vs_baseline": -3.988634,
+      "relative_delta_vs_baseline": -0.253669,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "object_halbench",
+      "metric": "chairs",
+      "direction": "lower_better",
+      "baseline_value": 53.0,
+      "our_value": 38.0,
+      "paper_reference_value": 5.3,
+      "delta_vs_baseline": -15.0,
+      "relative_delta_vs_baseline": -0.283019,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "pope_adv",
+      "metric": "accuracy",
+      "direction": "higher_better",
+      "baseline_value": 85.133333,
+      "our_value": 85.033333,
+      "paper_reference_value": null,
+      "delta_vs_baseline": -0.1,
+      "relative_delta_vs_baseline": -0.001175,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "no paper reference row"
+    },
+    {
+      "benchmark": "pope_adv",
+      "metric": "precision",
+      "direction": "higher_better",
+      "baseline_value": 89.924242,
+      "our_value": 90.70488,
+      "paper_reference_value": null,
+      "delta_vs_baseline": 0.780638,
+      "relative_delta_vs_baseline": 0.008681,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "no paper reference row"
+    },
+    {
+      "benchmark": "pope_adv",
+      "metric": "recall",
+      "direction": "higher_better",
+      "baseline_value": 79.133333,
+      "our_value": 78.066667,
+      "paper_reference_value": null,
+      "delta_vs_baseline": -1.066667,
+      "relative_delta_vs_baseline": -0.013479,
+      "strictly_comparable": false,
+      "paper_row_name": "HSA-DPO w/ LLaVA-1.5",
+      "baseline_row_name": "llava15_base_7b",
+      "comparison_note": "no paper reference row"
+    }
+  ]
+}

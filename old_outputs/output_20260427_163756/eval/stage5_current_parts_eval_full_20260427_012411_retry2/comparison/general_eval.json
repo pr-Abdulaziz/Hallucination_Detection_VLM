@@ -1,0 +1,160 @@
+{
+  "stage_metrics": {
+    "stage3": {
+      "stage3_dir": "/workspace/Hallucination_Detection_VLM/output/fghd/stage3",
+      "total_input_rows": 7643,
+      "vote_rows_processed": 7643,
+      "preference_pairs_emitted": 98,
+      "dropped_rows": 7545,
+      "backend": "gemini_openai_two_vote",
+      "vote_count": 2,
+      "approvals_required": 2
+    },
+    "stage4": {
+      "stage4_dir": "/workspace/Hallucination_Detection_VLM/output/fghd/stage5_llava_margin",
+      "final_train_loss": 0.037
+    }
+  },
+  "benchmarks": [
+    {
+      "benchmark": "pope_adv",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "f1": 84.18439716312058,
+        "pope_adv_f1": 84.18439716312058,
+        "precision": 89.92424242424242,
+        "recall": 79.13333333333334,
+        "accuracy": 85.13333333333334
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "direct_paper_hsa_b32_e1",
+      "metrics": {
+        "f1": 83.91257613758509,
+        "pope_adv_f1": 83.91257613758509,
+        "precision": 90.70487993803253,
+        "recall": 78.06666666666666,
+        "accuracy": 85.03333333333333
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "direct_normal_dpo_b32_e1",
+      "metrics": {
+        "f1": 83.88252148997134,
+        "pope_adv_f1": 83.88252148997134,
+        "precision": 90.63467492260062,
+        "recall": 78.06666666666666,
+        "accuracy": 85.0
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "api_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "f1": 83.86866523911492,
+        "pope_adv_f1": 83.86866523911492,
+        "precision": 90.2457757296467,
+        "recall": 78.33333333333333,
+        "accuracy": 84.93333333333334
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "chairs": 53.0,
+        "chairi": 15.72379367720466
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "direct_paper_hsa_b32_e1",
+      "metrics": {
+        "chairs": 38.0,
+        "chairi": 11.735159817351597
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "direct_normal_dpo_b32_e1",
+      "metrics": {
+        "chairs": 37.666666666666664,
+        "chairi": 11.981566820276496
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "api_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "chairs": 36.0,
+        "chairi": 10.40767386091127
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "amber_chair": 7.7,
+        "amber_cover": 51.7,
+        "amber_hal": 35.9,
+        "amber_cog": 4.3
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "direct_paper_hsa_b32_e1",
+      "metrics": {
+        "amber_chair": 5.5,
+        "amber_cover": 50.0,
+        "amber_hal": 25.1,
+        "amber_cog": 2.5
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "direct_normal_dpo_b32_e1",
+      "metrics": {
+        "amber_chair": 5.2,
+        "amber_cover": 49.9,
+        "amber_hal": 25.2,
+        "amber_cog": 2.5
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "api_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "amber_chair": 5.3,
+        "amber_cover": 49.6,
+        "amber_hal": 25.5,
+        "amber_cog": 2.5
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    }
+  ]
+}
