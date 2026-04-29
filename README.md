@@ -52,7 +52,7 @@ The implemented plan is:
 
 - **Presentation PDF:** Not exported in this repository; export from the editable PPTX when required.
 - **Presentation PPTX:** [Project Presentation](asset/Fine-Grained%20Hallucination%20Detection%20and%20Severity-Aware%20Mitigation%20in%20Vision-Language.pptx)
-- **Term Paper PDF:** [Term Paper](asset/paper/main.pdf)
+- **Term Paper PDF:** [Term Paper](main.pdf)
 - **Term Paper LaTeX Files:** [Paper Folder](asset/paper/)
 - **Methodology Diagram:** [Diagram](asset/diagram_overview.png)
 - **Result Summary:** [Result Summary CSV](reports/results_summary.csv)
