@@ -1,7 +1,0 @@
-{
-  "backend": "template",
-  "hallucinated_rows": 3,
-  "non_hallucinated_skipped": 1,
-  "rewrites_emitted": 3,
-  "total_input_rows": 4
-}

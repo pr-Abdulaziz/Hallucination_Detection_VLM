@@ -32,8 +32,8 @@ SHOT_MODE="${USER_SHOT_MODE:-${SHOT_MODE:-${EXPERIMENT_MODE:-${PROMPT_MODE:-zero
 case "${SHOT_MODE}" in
   zero|zero_shot)
     SHOT_MODE="zero_shot"
-    DEFAULT_REPAIRED_INPUT="output/fghd/released_pref_stage4_and_gate/repaired_preferences.jsonl"
-    DEFAULT_BASE_ACCEPTED_INPUT="output/fghd/released_pref_stage3_and_gate/passed_by_either.jsonl"
+    DEFAULT_REPAIRED_INPUT="output/fghd/released_pref_stage4/repaired_preferences.jsonl"
+    DEFAULT_BASE_ACCEPTED_INPUT="output/fghd/released_pref_stage3/validated_preferences.jsonl"
     DEFAULT_OUTPUT_DIR="output/fghd/released_pref_stage5_openai_verify"
     ;;
   two|2shot|two_shot)

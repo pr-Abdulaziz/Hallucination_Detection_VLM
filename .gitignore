@@ -30,6 +30,8 @@ wheels/
 /VLFeedback/
 /datasets/
 /checkpoints/
+/output/
+/old_outputs/
 /playground/data/
 *.tar.gz
 *.bundle
@@ -56,9 +58,20 @@ tensorboard/
 *.swp
 *.swo
 *~
+~$*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
 
 # Coverage
 .coverage

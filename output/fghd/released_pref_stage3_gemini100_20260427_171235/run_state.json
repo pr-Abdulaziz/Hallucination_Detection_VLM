@@ -1,9 +1,0 @@
-{
-  "stdout": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\run.out.log",
-  "pid": 26956,
-  "started_at": "2026-04-27T17:12:35.7913864+03:00",
-  "stderr": "output\\fghd\\released_pref_stage3_gemini100_20260427_171235\\run.err.log",
-  "stage": "stage3",
-  "command": "python -m fg_pipeline.paper.run_released_pref_stage3_validate --api-judge gemini --gemini-model gemini-2.5-flash --workers 100",
-  "output_dir": "output/fghd/released_pref_stage3_gemini100_20260427_171235"
-}

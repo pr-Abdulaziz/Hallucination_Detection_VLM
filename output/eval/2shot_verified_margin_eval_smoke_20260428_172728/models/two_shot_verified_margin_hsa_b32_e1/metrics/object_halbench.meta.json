@@ -1,8 +1,0 @@
-{
-  "annotation_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/object-halbench/annotations.jsonl",
-  "question_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/object-halbench/questions.jsonl",
-  "num_examples": 5,
-  "object_mentions": 35,
-  "coco_sentence_count": 5,
-  "protocol": "rule-based CHAIR without external judge API"
-}

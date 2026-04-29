@@ -1,4 +1,0 @@
-Released pref Stage 3 validated 8386 row(s): 7132 accepted, 1254 rejected
-Accepted preferences -> output\fghd\released_pref_stage3_2shot_experiment\validated_preferences.jsonl
-Rejected for repair -> output\fghd\released_pref_stage3_2shot_experiment\rejected_for_repair.jsonl
-Validation stats -> output\fghd\released_pref_stage3_2shot_experiment\stats.json

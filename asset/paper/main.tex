@@ -25,9 +25,8 @@
 
 \author{%
   Abdulaziz Alqahtani\\
-  King Fahd University of Petroleum and Minerals\\
-  \And
-  Alwaleed Alharthi \\
+  Alwaleed Alharthi\\[4pt]
+  Supervisor: Dr. Muzammil Behzad\\[4pt]
   King Fahd University of Petroleum and Minerals\\
 }
 
@@ -36,7 +35,7 @@
 \maketitle
 
 \begin{abstract}
-Large vision-language models (LVLMs) can generate fluent answers that contain visually unsupported objects, attributes, or relations. This hallucination problem is difficult to mitigate with coarse response-level labels because a single response may contain both grounded and ungrounded statements with different severities. In this work, we implement and analyze a fine-grained hallucination mitigation pipeline that converts released hallucination supervision into structured critiques, uses those critiques for rewrite-based preference construction, optionally validates and repairs preference pairs with LVLM judges, and trains LLaVA adapters with DPO-style objectives. We compare a base LLaVA model, standard DPO, direct HSA-DPO, and a judged severity-margin HSA-DPO variant. The results are mixed but informative: POPE adversarial F1 remains slightly higher for the base model ($84.18$) than for the trained variants ($83.87$--$83.91$), while Object HalBench and AMBER hallucination metrics improve substantially after alignment. In particular, Object HalBench CHAIRs decreases from $53.00$ to $36.00$ for the judged severity-margin variant, and AMBER-Hal decreases from $35.90$ to approximately $25$. These findings suggest that fine-grained critique and severity-aware preference training are useful for reducing generative hallucination, but their benefits are benchmark-dependent and do not automatically transfer to every hallucination evaluation setting.
+Large vision-language models (LVLMs) can generate fluent answers that contain visually unsupported objects, attributes, or relations. This hallucination problem is difficult to mitigate with coarse response-level labels because a single response may contain both grounded and ungrounded statements with different severities. In this work, we implement and analyze a fine-grained hallucination mitigation pipeline that converts released hallucination supervision into structured critiques, uses those critiques for rewrite-based preference construction, validates preference pairs with LVLM judges, repairs weak pairs with LLaVA, and trains LLaVA adapters with DPO-style objectives. We compare a base LLaVA model, standard DPO, direct HSA-DPO, a zero-shot judged severity-margin HSA-DPO-M variant, and a two-shot judged severity-margin HSA-DPO-M variant. The results are mixed but informative: POPE adversarial F1 remains slightly higher for the base model ($84.18$) than for the completed trained variants with valid POPE F1 values ($83.87$--$83.91$), while Object HalBench and AMBER hallucination metrics improve substantially after alignment. In particular, Object HalBench CHAIRs decreases from $53.00$ to $36.00$ for the zero-shot judged severity-margin variant and to $40.33$ for the two-shot judged variant; AMBER-Hal decreases from $35.90$ to $25.50$ and $26.90$, respectively. These findings suggest that fine-grained critique and severity-aware preference training are useful for reducing generative hallucination, but their benefits are benchmark-dependent and do not automatically transfer to every hallucination evaluation setting.
 \end{abstract}
 
 \section{Introduction}
@@ -85,12 +84,14 @@ The present project is an implementation and analysis of this fine-grained, seve
 
 \section{Methodology}
 
-Our methodology treats hallucination mitigation as a data construction and preference-alignment problem rather than only a model-training problem. The pipeline begins with released fine-grained hallucination supervision, converts it into normalized critique records, constructs or reuses preference pairs, optionally validates and repairs those pairs, and finally trains LVLM adapters with DPO-style objectives. Figure~\ref{fig:pipeline} summarizes the resulting workflow. The design has two goals. First, it preserves the fine-grained supervision signal: hallucination type, rationale, evidence text, and severity are retained instead of being collapsed into a single binary label. Second, it separates two preference-data paths: a direct path that trains on the released preference pairs as provided, and a judged path that uses Gemini/GPT checks plus LLaVA repair to reduce noisy or weak pairs before training.
+The methodological problem is defined as follows. Given an image-question or image-instruction input $x$ and an original LVLM response $\hat{y}$, the objective is to construct or select a better response $y^+$ that is more visually grounded in the image. The improved response should remove unsupported visual claims while preserving correct visual details from the original response. In preference-learning terms, the project transforms hallucination supervision into reliable triples $(x, y^+, y^-)$, where $y^-$ is the hallucinated or weaker response and $y^+$ is the preferred grounded response. This formulation motivates three research questions: \textbf{RQ1:} Can released fine-grained hallucination annotations be converted into structured critique records that support preference construction? \textbf{RQ2:} Can judged preference validation and repair improve the quality of preference pairs used for alignment? \textbf{RQ3:} Does severity-aware DPO reduce hallucination compared with the base LLaVA model, standard DPO, and direct HSA-DPO?
+
+Our methodology treats hallucination mitigation as a data construction and preference-alignment problem rather than only a model-training problem. The pipeline begins with released fine-grained hallucination supervision, converts it into normalized critique records, constructs or reuses preference pairs, validates, repairs, and re-verifies weak pairs when needed, and finally trains LVLM adapters with DPO-style objectives. Figure~\ref{fig:pipeline} summarizes the resulting five-stage workflow. The design has two goals. First, it preserves the fine-grained supervision signal: hallucination type, rationale, evidence text, and severity are retained instead of being collapsed into a single binary label. Second, it separates two preference-data paths: a direct path that trains on the released preference pairs as provided, and a judged path that uses Gemini/GPT checks plus LLaVA repair to reduce noisy or weak pairs before training.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{../diagram_overview.png}
-  \caption{Overview of the implemented fine-grained hallucination mitigation pipeline. Released supervision is normalized into critique records, LLaVA is used for critique-guided rewriting or repair, preference pairs are routed through direct and judged paths, and the resulting training sets are used for DPO/HSA-DPO style severity-aware alignment.}
+  \caption{Overview of the implemented fine-grained hallucination mitigation pipeline. Released supervision is normalized into critique records, LLaVA is used for critique-guided rewriting or repair, preference pairs are routed through direct and judged paths, weak repaired pairs are re-verified, and the resulting training sets are used for DPO/HSA-DPO style severity-aware alignment. Evaluation is reported separately in Section~\ref{sec:results}.}
   \label{fig:pipeline}
 \end{figure}
 
@@ -151,7 +152,7 @@ In the final experimental organization, we also use the released preference data
 Preference quality is a central source of risk in automatic hallucination mitigation. A pair is useful only if the chosen response is actually more visually grounded than the rejected response. If a chosen response removes useful detail, adds a new unsupported claim, or fails to correct the original hallucination, then DPO training may learn from noisy supervision. To address this issue, the project supports two preference paths.
 
 \paragraph{Direct preference path.}
-The direct path uses the released preference data without additional API judging. This path preserves the original chosen/rejected pairs and severity scores and is used to train a direct HSA-DPO model and a matched normal DPO baseline. The purpose of this path is to establish a clean baseline: if the released preference dataset already contains useful alignment signal, then direct DPO/HSA-DPO training should be a strong and simple reference point.
+The direct path uses the released preference data without additional API judging. This path preserves the original chosen/rejected pairs and severity scores and is used to train a direct HSA-DPO model and a matched standard DPO baseline. The purpose of this path is to establish a clean baseline: if the released preference dataset already contains useful alignment signal, then direct DPO/HSA-DPO training should be a strong and simple reference point.
 
 \paragraph{Judged preference path.}
 The judged path applies hosted LVLM judges to evaluate whether the chosen response should be accepted. For a preference pair $p_i$, each judge produces a binary decision and a short reason:
@@ -160,7 +161,7 @@ v_i^k = (\mathrm{approved}_i^k, r_i^k),
 \end{equation}
 where $k$ indexes the judge family. The implementation supports Gemini-only, OpenAI-only, or Gemini+OpenAI checking. The final acceptance decision is configurable: a permissive setting can keep a pair if either judge approves, while a stricter setting can require both judges to approve. All votes and reasons are stored in metadata so the decision remains auditable.
 
-Pairs rejected by the judged path are not automatically discarded. They are routed to a repair stage in which LLaVA receives the original rejected response, the current chosen response, severity information, and the judge feedback. LLaVA then produces a repaired chosen response. The repaired pair is checked for basic validity and merged with accepted pairs to form the judged-preference training set. This design separates diagnosis from repair: Gemini/GPT are used as quality checkers, while LLaVA remains the local model used to produce repaired training text.
+Pairs rejected by the judged path are not automatically discarded. They are routed to a repair stage in which LLaVA receives the original rejected response, the current chosen response, severity information, and the judge feedback. LLaVA then produces a repaired chosen response while the rejected response remains fixed. The repaired pair is re-verified by the judge, and only approved repaired pairs are merged with initially accepted pairs to form the judged-preference training set. Failed repaired pairs are removed. This design separates diagnosis from repair: Gemini/GPT are used as quality checkers, while LLaVA remains the local model used to produce repaired training text.
 
 \subsection{Training Sets}
 
@@ -170,9 +171,9 @@ D_A = D_{\mathrm{pref}}^{\mathrm{released}},
 \end{equation}
 where released preference pairs are used directly. Training Set B is the judged-preference set:
 \begin{equation}
-D_B = D_{\mathrm{accepted}} \cup D_{\mathrm{repaired}},
+D_B = D_{\mathrm{accepted}} \cup D_{\mathrm{approved}\text{-}\mathrm{repaired}},
 \end{equation}
-where $D_{\mathrm{accepted}}$ contains judge-approved pairs and $D_{\mathrm{repaired}}$ contains repaired versions of rejected pairs. These two training sets allow the project to compare whether extra preference quality control helps or whether direct training on released preferences is already sufficient.
+where $D_{\mathrm{accepted}}$ contains initially judge-approved pairs and $D_{\mathrm{approved}\text{-}\mathrm{repaired}}$ contains only repaired pairs that pass the re-verification step. These two training sets allow the project to compare whether extra preference quality control helps or whether direct training on released preferences is already sufficient.
 
 \subsection{Severity-Aware Preference Optimization}
 
@@ -208,17 +209,35 @@ This training design allows us to compare whether hallucination severity is more
 
 \subsection{Implementation Workflow Support}
 
-The implementation is organized to make the full workflow reproducible and inspectable. Each stage writes JSONL artifacts and a statistics file. Stage 1 writes normalized fine-grained critique records. Stage 2 writes detector-style examples. Released-preference Stage 3 writes accepted pairs, rejected pairs, and audit records containing judge decisions. Released-preference Stage 4 writes repaired pairs and the final merged preference dataset. Stage 5 writes LoRA adapters and trainer states for the aligned models.
+The implementation is organized to make the full workflow reproducible and inspectable. Each processing step writes JSONL artifacts and a statistics file. The critique-extraction scripts write normalized fine-grained critique records, the detector-construction scripts write detector-style examples, the released-preference validation scripts write accepted pairs, rejected pairs, and audit records containing judge decisions, the repair scripts write repaired candidates, and the repair-verification scripts write approved repairs, failed repairs, and the final verified preference dataset. The alignment scripts then write LoRA adapters and trainer states for the trained models.
 
-The current repository provides separate scripts for the direct and judged paths. The direct path trains from the released preference file and supports both HSA-DPO and standard DPO. The judged path first validates released pairs, repairs rejected rows, and then trains on the merged accepted/repaired preference dataset. Evaluation is kept separate from training and is reported through automatic benchmark summaries, with paper-comparable and supplemental local results separated to avoid overstating conclusions.
+The current repository provides separate scripts for the direct and judged paths. The direct path trains from the released preference file and supports both HSA-DPO and standard DPO. The judged path first validates released pairs, repairs rejected rows, re-verifies repaired rows, and then trains on the merged accepted/approved-repaired preference dataset. Evaluation is kept separate from training and is reported through automatic benchmark summaries, with paper-comparable and supplemental local results separated to avoid overstating conclusions.
 
 \section{Experiments}
 
-We evaluated the proposed mitigation pipeline using a controlled comparison built around LLaVA-1.5-7B as the base large vision-language model. The released fine-grained hallucination supervision was first normalized into $16{,}143$ feedback records, consisting of $7{,}643$ hallucinated samples and $8{,}500$ non-hallucinated samples, and the main alignment experiments used $8{,}386$ image-response preference pairs. We compared the unaligned LLaVA-1.5-7B model, a standard DPO model trained on the same preference pairs, a severity-aware HSA-DPO model, and judged-preference variants in which low-quality pairs were either repaired or removed before training. To ensure a fair comparison, the standard DPO and HSA-DPO runs used the same training budget and optimization settings: one training epoch, per-device batch size $1$, effective batch size $32$, learning rate $2\times10^{-6}$, DPO temperature parameter $\beta=0.1$, LoRA rank $128$, LoRA scaling factor $256$, maximum sequence length $1024$, cosine learning-rate scheduling, no warmup, and zero weight decay. The HSA-DPO variant differed only in its objective, where severity scores were used to assign stronger penalties to preference pairs containing more severe hallucinations, while the standard DPO baseline treated all preference pairs uniformly. Model behavior was evaluated using hallucination-oriented benchmarks including POPE, Object HalBench, and AMBER, with the analysis focusing on precision, recall, F1 score, and hallucination-related error rates rather than claiming uniform improvement across all benchmarks.
+We evaluated the proposed mitigation pipeline using a controlled comparison built around LLaVA-1.5-7B as the base large vision-language model. The released fine-grained hallucination supervision was first normalized into $16{,}143$ feedback records, consisting of $7{,}643$ hallucinated samples and $8{,}500$ non-hallucinated samples, and the main alignment experiments used $8{,}386$ released image-response preference pairs. We compared the unaligned LLaVA-1.5-7B model, a standard DPO model trained on the same preference source, a direct severity-aware HSA-DPO model, a zero-shot judged severity-margin HSA-DPO-M model, and a two-shot judged severity-margin HSA-DPO-M model. In both judged runs, initial preference validation used Gemini-2.5-Flash-Lite and GPT-4o-mini with an ``either judge approves'' rule, rejected or weak pairs were repaired with LLaVA-1.5-7B, and repaired pairs were re-verified with GPT-4.1-mini. The zero-shot path presented each target pair directly after the validation rubric, while the two-shot path inserted two calibration examples into the Gemini/GPT validation and GPT-4.1-mini re-verification prompts. To ensure a fair comparison, all reported DPO/HSA-DPO runs used the same training budget and optimization settings unless otherwise stated: one training epoch, per-device batch size $1$, effective batch size $32$, learning rate $2\times10^{-6}$, DPO temperature parameter $\beta=0.1$, LoRA rank $128$, LoRA scaling factor $256$, maximum sequence length $1024$, cosine learning-rate scheduling, no warmup, and zero weight decay. The severity-margin HSA-DPO-M objective used a severity margin scale of $0.5$. Adapter training was run on a rented VastAI instance with an NVIDIA RTX 6000 Ada Generation GPU with 48 GB VRAM. Model behavior was evaluated using hallucination-oriented benchmarks including POPE, Object HalBench, and AMBER, with the analysis focusing on precision, recall, F1 score, and hallucination-related error rates rather than claiming uniform improvement across all benchmarks.
+
+\begin{table}[t]
+  \centering
+  \caption{Judged-preference construction statistics for the zero-shot and two-shot HSA-DPO-M paths. Initial validation checks released preference pairs, LLaVA repairs rejected pairs, and GPT-4.1-mini re-verifies repaired pairs before final training.}
+  \label{tab:pipeline-stats}
+  \small
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Path & Source pairs & Initially accepted & Initially rejected & Repaired & Approved repairs & Final verified & Train-ready \\
+    \midrule
+    Zero-shot judged path & 8{,}386 & 7{,}818 & 568 & 473 & 244 & 8{,}062 & 8{,}062 \\
+    Two-shot judged path & 8{,}386 & 7{,}132 & 1{,}254 & 1{,}063 & 746 & 7{,}878 & 7{,}874 \\
+    \bottomrule
+  \end{tabular}%
+  }
+\end{table}
 
 \section{Results}
+\label{sec:results}
 
-Table~\ref{tab:pope-results} reports POPE adversarial results for the base model and the three trained variants. On this binary object-presence benchmark, alignment does not improve the main F1 score. The base LLaVA model obtains the highest F1 score, $84.18$, while direct HSA-DPO reaches $83.91$, standard DPO reaches $83.88$, and the judged severity-margin HSA-DPO variant reaches $83.87$. The trained models increase precision relative to the base model, with direct HSA-DPO reaching $90.70$ precision compared with $89.92$ for the base model. However, this precision gain is offset by lower recall: the base model obtains $79.13$ recall, while the trained variants remain around $78.07$--$78.33$. This pattern indicates that preference training made the models somewhat more conservative on object-presence decisions, but the reduction in recall prevented an overall F1 improvement.
+Table~\ref{tab:pope-results} reports POPE adversarial results for the completed runs with valid F1 and recall values. On this binary object-presence benchmark, alignment does not improve the main F1 score. The base LLaVA model obtains the highest completed F1 score, $84.18$, while direct HSA-DPO reaches $83.91$, standard DPO reaches $83.88$, and the zero-shot judged severity-margin HSA-DPO-M variant reaches $83.87$. The trained variants with valid POPE results increase precision relative to the base model, with direct HSA-DPO reaching $90.70$ precision compared with $89.92$ for the base model. However, this precision gain is offset by lower recall: the base model obtains $79.13$ recall, while the trained variants remain around $78.07$--$78.33$. The two-shot POPE artifact did not contain valid recall/F1 fields, so it is omitted from this POPE table and figure rather than treated as a comparable F1 result.
 
 \begin{table}[t]
   \centering
@@ -230,16 +249,16 @@ Table~\ref{tab:pope-results} reports POPE adversarial results for the base model
     Model & Accuracy & Precision & Recall & F1 \\
     \midrule
     LLaVA-1.5-7B & 85.13 & 89.92 & 79.13 & 84.18 \\
-    Direct normal DPO & 85.00 & 90.63 & 78.07 & 83.88 \\
+    Standard DPO & 85.00 & 90.63 & 78.07 & 83.88 \\
     Direct HSA-DPO & 85.03 & 90.70 & 78.07 & 83.91 \\
-    Judged margin HSA-DPO & 84.93 & 90.25 & 78.33 & 83.87 \\
+    Judged margin HSA-DPO-M (zero-shot) & 84.93 & 90.25 & 78.33 & 83.87 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Table~\ref{tab:hallucination-results} reports Object HalBench and AMBER hallucination-oriented metrics. These results show a clearer benefit from the mitigation pipeline. On Object HalBench, all trained variants reduce hallucination rates substantially. CHAIRs decreases from $53.00$ for the base model to $38.00$ for direct HSA-DPO, $37.67$ for standard DPO, and $36.00$ for judged severity-margin HSA-DPO. CHAIRi follows the same trend, decreasing from $15.72$ to $11.74$, $11.98$, and $10.41$, respectively. The judged severity-margin variant therefore gives the strongest Object HalBench result among the completed runs.
+Table~\ref{tab:hallucination-results} reports Object HalBench and AMBER hallucination-oriented metrics. These results show a clearer benefit from the mitigation pipeline. On Object HalBench, all trained variants reduce hallucination rates substantially. CHAIRs decreases from $53.00$ for the base model to $38.00$ for direct HSA-DPO, $37.67$ for standard DPO, $36.00$ for zero-shot judged severity-margin HSA-DPO-M, and $40.33$ for the two-shot judged severity-margin HSA-DPO-M run. CHAIRi follows the same overall trend, decreasing from $15.72$ to $11.74$, $11.98$, $10.41$, and $12.81$, respectively. The zero-shot judged severity-margin variant therefore gives the strongest Object HalBench result among the completed runs, while the two-shot run still improves over the base model but does not surpass the zero-shot judged path.
 
-AMBER shows a similar improvement on hallucination-related metrics. AMBER-CHAIR decreases from $7.70$ for the base model to $5.50$ for direct HSA-DPO, $5.20$ for standard DPO, and $5.30$ for judged severity-margin HSA-DPO. AMBER-Hal decreases from $35.90$ to $25.10$, $25.20$, and $25.50$, respectively. AMBER-Cog also decreases from $4.30$ to $2.50$ for all trained variants. The only tradeoff is AMBER-Cover, which decreases from $51.70$ for the base model to approximately $49.60$--$50.00$ after training. This suggests that the aligned models reduce unsupported content, but may also become slightly more conservative in the amount of visual detail they include.
+AMBER shows a similar improvement on hallucination-related metrics. AMBER-CHAIR decreases from $7.70$ for the base model to $5.50$ for direct HSA-DPO, $5.20$ for standard DPO, $5.30$ for zero-shot judged severity-margin HSA-DPO-M, and $5.60$ for two-shot judged severity-margin HSA-DPO-M. AMBER-Hal decreases from $35.90$ to $25.10$, $25.20$, $25.50$, and $26.90$, respectively. AMBER-Cog also decreases from $4.30$ to $2.50$--$2.70$ after training. The main tradeoff is AMBER-Cover, which decreases from $51.70$ for the base model to approximately $49.60$--$50.40$ after training. This suggests that the aligned models reduce unsupported content, but may also become slightly more conservative in the amount of visual detail they include.
 
 \begin{table}[t]
   \centering
@@ -252,9 +271,10 @@ AMBER shows a similar improvement on hallucination-related metrics. AMBER-CHAIR 
     Model & CHAIRs & CHAIRi & AMBER-CHAIR & AMBER-Hal & AMBER-Cog & AMBER-Cover \\
     \midrule
     LLaVA-1.5-7B & 53.00 & 15.72 & 7.70 & 35.90 & 4.30 & 51.70 \\
-    Direct normal DPO & 37.67 & 11.98 & 5.20 & 25.20 & 2.50 & 49.90 \\
+    Standard DPO & 37.67 & 11.98 & 5.20 & 25.20 & 2.50 & 49.90 \\
     Direct HSA-DPO & 38.00 & 11.74 & 5.50 & 25.10 & 2.50 & 50.00 \\
-    Judged margin HSA-DPO & 36.00 & 10.41 & 5.30 & 25.50 & 2.50 & 49.60 \\
+    Judged margin HSA-DPO-M (zero-shot) & 36.00 & 10.41 & 5.30 & 25.50 & 2.50 & 49.60 \\
+    Judged margin HSA-DPO-M (two-shot) & 40.33 & 12.81 & 5.60 & 26.90 & 2.70 & 50.40 \\
     \bottomrule
   \end{tabular}%
   }
@@ -262,10 +282,11 @@ AMBER shows a similar improvement on hallucination-related metrics. AMBER-CHAIR 
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.74\linewidth,height=0.18\textheight]{../result_figures/pope_benchmark_histogram.png}\\[0.25em]
-  \includegraphics[width=0.74\linewidth,height=0.18\textheight]{../result_figures/object_halbench_histogram.png}\\[0.25em]
-  \includegraphics[width=0.74\linewidth,height=0.18\textheight]{../result_figures/amber_benchmark_histogram.png}
-  \caption{Histogram summaries for POPE, Object HalBench, and AMBER. The plots visualize the same benchmark patterns as Tables~\ref{tab:pope-results} and~\ref{tab:hallucination-results}: limited POPE improvement, stronger reductions in Object HalBench hallucination rates, and lower AMBER hallucination-related metrics after mitigation.}
+  \includegraphics[width=0.48\linewidth,height=0.16\textheight,keepaspectratio]{../result_figures/pope_benchmark_histogram.png}
+  \includegraphics[width=0.48\linewidth,height=0.16\textheight,keepaspectratio]{../result_figures/object_halbench_histogram.png}\\[0.5em]
+  \includegraphics[width=0.48\linewidth,height=0.16\textheight,keepaspectratio]{../result_figures/amber_chair_histogram.png}
+  \includegraphics[width=0.48\linewidth,height=0.16\textheight,keepaspectratio]{../result_figures/amber_hal_histogram.png}
+  \caption{Benchmark summaries for POPE, Object HalBench, AMBER-CHAIR, and AMBER-Hal. Results show limited POPE improvement but stronger reductions on Object HalBench and AMBER. The two-shot HSA-DPO-M variant is omitted from POPE because valid F1/recall values were unavailable.}
   \label{fig:benchmark-histograms}
 \end{figure}
 
@@ -276,7 +297,9 @@ The results show that fine-grained hallucination mitigation should not be evalua
 
 At the same time, POPE reveals an important limitation. POPE adversarial evaluation is a binary object-presence setting, and the trained models become more precise but less recall-oriented. In practical terms, the models are less likely to answer positively when uncertain, which can reduce false positives but increase false negatives. This behavior is consistent with a mitigation pipeline that penalizes hallucination: the model learns caution. However, caution is not always equivalent to better benchmark performance, especially when recall is important. This explains why POPE F1 does not improve even though Object HalBench and AMBER hallucination metrics improve.
 
-The comparison between standard DPO, direct HSA-DPO, and judged severity-margin HSA-DPO also suggests that severity information is useful, but not sufficient by itself. The judged severity-margin variant obtains the best Object HalBench scores, while standard DPO is slightly better on AMBER-CHAIR and direct HSA-DPO is slightly better on AMBER-Hal. These small differences indicate that the quality and distribution of preference pairs may matter as much as the exact severity-aware objective. In particular, judged validation can remove or repair weak pairs, but it can also reduce the amount and diversity of training data. A robust future version of the pipeline should therefore treat preference validation as a data-quality tradeoff rather than assuming that stricter filtering always improves downstream behavior.
+The comparison between standard DPO, direct HSA-DPO, zero-shot judged severity-margin HSA-DPO-M, and two-shot judged severity-margin HSA-DPO-M also suggests that severity information is useful, but not sufficient by itself. The zero-shot judged severity-margin variant obtains the best Object HalBench scores, while standard DPO is slightly better on AMBER-CHAIR and direct HSA-DPO is slightly better on AMBER-Hal. The two-shot judged run accepts fewer direct pairs, repairs more rejected pairs, and still improves over the base model on Object HalBench and AMBER, but it does not improve over the zero-shot judged variant. These differences indicate that the quality and distribution of preference pairs may matter as much as the exact severity-aware objective. In particular, judged validation can remove or repair weak pairs, but it can also reduce the amount and diversity of training data. A robust future version of the pipeline should therefore treat preference validation as a data-quality tradeoff rather than assuming that stricter filtering or few-shot prompting always improves downstream behavior.
+
+The results answer the three research questions in a qualified way. For \textbf{RQ1}, the released annotations can be converted into structured critique and preference artifacts: the pipeline normalizes $16{,}143$ feedback records and uses $8{,}386$ released preference pairs for alignment experiments. For \textbf{RQ2}, judged validation and repair improve the inspectability of preference construction and recover some initially rejected examples, but the downstream effect is mixed. The zero-shot judged path keeps $8{,}062$ final verified pairs, while the two-shot judged path keeps $7{,}878$ final verified pairs; however, the two-shot variant does not outperform the zero-shot variant on the reported hallucination metrics. For \textbf{RQ3}, severity-aware DPO reduces hallucination in generative settings but not universally. Object HalBench CHAIRs drops from $53.00$ for the base model to $36.00$ for the best judged severity-margin run, and AMBER-Hal drops from $35.90$ to the $25.10$--$26.90$ range across trained variants. In contrast, POPE adversarial F1 remains slightly higher for the base model, so the answer is benchmark-dependent rather than a uniform yes.
 
 Overall, the evidence supports a measured conclusion: fine-grained critique extraction and severity-aware alignment are useful tools for hallucination mitigation, especially for open-ended generation, but they do not automatically dominate simpler baselines across every benchmark. The most defensible interpretation is that the pipeline improves hallucination-specific generative behavior while introducing a conservative response tendency that must be managed when evaluating binary visual question settings.
 
@@ -287,12 +310,12 @@ Our project has several limitations. First, it is primarily an implementation an
 
 \section{Conclusion}
 
-This work implemented and evaluated a fine-grained hallucination mitigation pipeline for LVLMs. The pipeline normalizes released hallucination supervision into structured critiques, uses those critiques to support preference construction and repair, and trains LLaVA adapters with standard DPO, direct HSA-DPO, and judged severity-margin HSA-DPO objectives. The experimental results show that the approach is most effective on generative hallucination metrics: Object HalBench CHAIRs and AMBER hallucination scores decrease substantially compared with the base model. However, POPE adversarial F1 does not improve, because the aligned models trade higher precision for lower recall.
+This work implemented and evaluated a fine-grained hallucination mitigation pipeline for LVLMs. The pipeline normalizes released hallucination supervision into structured critiques, uses those critiques to support preference construction and repair, and trains LLaVA adapters with standard DPO, direct HSA-DPO, zero-shot judged severity-margin HSA-DPO-M, and two-shot judged severity-margin HSA-DPO-M objectives. The experimental results show that the approach is most effective on generative hallucination metrics: Object HalBench CHAIRs and AMBER hallucination scores decrease substantially compared with the base model. However, POPE adversarial F1 does not improve for the trained variants with valid POPE values, and the two-shot POPE artifact does not provide a valid F1/recall value.
 
 The main conclusion is therefore not that severity-aware preference optimization universally improves LVLM hallucination behavior, but that fine-grained critique supervision provides a useful and inspectable training signal when it is aligned with the evaluation setting. Severity-aware methods can reduce unsupported visual content, especially in open-ended responses, but their success depends on the quality of preference pairs, the strictness of validation, and the benchmark objective. Future work should improve the judged-repair path, evaluate larger and more diverse LVLM backbones, and study how to preserve visual coverage while reducing hallucination.
 
 \begin{ack}
-This section is intentionally left blank for the anonymized submission. Funding and acknowledgment details can be added in the camera-ready version if the paper is accepted.
+This project was self-funded. The total project cost, including rented GPU compute and hosted API usage for preference validation, repair verification, training, and evaluation, exceeded USD 120.
 \end{ack}
 
 \bibliographystyle{plainnat}
@@ -424,7 +447,7 @@ The tags may not always be correct; rely on the image and remove only unsupporte
 \subsection{Released-Preference Validation Prompt for Gemini and GPT}
 \label{app:api-validation-prompt}
 
-The judged-preference path uses hosted VLM judges to validate released preference pairs. Gemini and GPT receive the same text prompt and the corresponding image. The judges do not rewrite the answer; they only decide whether the chosen response is a reliable improvement over the rejected response. The implementation can run either a single judge or both judges. When both are used, the decision rule can be configured as either accepting when at least one judge approves or accepting only when both approve.
+The judged-preference path uses hosted VLM judges to validate released preference pairs. Gemini and GPT receive the same text prompt and the corresponding image. The judges do not rewrite the answer; they only decide whether the chosen response is a reliable improvement over the rejected response. The implementation can run either a single judge or both judges. When both are used, the decision rule can be configured as either accepting when at least one judge approves or accepting only when both approve. In the zero-shot experiment, the target pair is presented directly after the rubric. In the two-shot experiment, the calibration block in Appendix~\ref{app:two-shot-validation-prompt} is inserted before the target pair.
 
 \begin{quote}
 \small
@@ -445,6 +468,50 @@ Approve when the chosen rewrite clearly improves factual visual grounding over t
 \texttt{\{rejected tag text\}}
 
 Return only the JSON object now.
+\end{quote}
+
+\subsection{Two-Shot Validation Calibration Block}
+\label{app:two-shot-validation-prompt}
+
+The two-shot experiment uses the same validation prompt as Appendix~\ref{app:api-validation-prompt}, but inserts two text-only calibration examples before the target pair. These examples teach the approval rule without claiming that their visual details are present in the target image.
+
+\begin{quote}
+\small
+Two calibration examples follow. They are text-only examples for the decision rubric; do not assume their visual details are present in the target image.
+
+\textbf{Example 1.}
+
+\textbf{Question:}
+Describe the image.
+
+\textbf{Rejected/original response:}
+The image shows a child holding a red umbrella while a dog walks nearby.
+
+\textbf{Chosen/rewrite response:}
+The image shows a child holding an umbrella.
+
+\textbf{Original hallucination tags and severity:}
+object hallucination: dog nearby; attribute hallucination: red umbrella; severity major
+
+\textbf{Expected JSON:}
+\texttt{\{"approved": true, "reason": "The chosen response removes the unsupported dog and color claims while preserving the grounded umbrella detail."\}}
+
+\textbf{Example 2.}
+
+\textbf{Question:}
+What is happening in the scene?
+
+\textbf{Rejected/original response:}
+A man is sitting on a bench with a bicycle beside him.
+
+\textbf{Chosen/rewrite response:}
+A man is sitting on a bench beside a motorcycle in a park.
+
+\textbf{Original hallucination tags and severity:}
+object hallucination: bicycle beside him; severity moderate
+
+\textbf{Expected JSON:}
+\texttt{\{"approved": false, "reason": "The chosen response introduces unsupported motorcycle and park details, so it is not a reliable improvement."\}}
 \end{quote}
 
 \subsection{API Critic Feedback Prompt}
@@ -502,35 +569,38 @@ The detector and critic feedback may be wrong; rely on the image. Remove unsuppo
 \subsection{Rejected-Pair Repair Prompt}
 \label{app:repair-prompt}
 
-When a preference pair fails validation, LLaVA can repair the chosen response. The repair prompt uses the original response, the failed rewrite, the fine-grained critiques, and the validation reasons from the judges.
+When a preference pair fails validation, LLaVA can repair the chosen response. The repair prompt uses the original rejected response, the current chosen rewrite, the fine-grained critiques, and the validation reasons from the judges. The rejected response remains fixed; only the chosen response is repaired.
 
 \begin{quote}
 \small
 You are repairing a hallucination-mitigation rewrite for a vision-language model.
 
+Use the image as the source of truth. Produce only the final corrected answer, with no markdown and no explanation.
+
+The current chosen rewrite was rejected by the API judges. Revise it so it is better grounded in the image, preserves correct useful details, removes unsupported details, and avoids adding new unsupported claims.
+
 \textbf{Question:}
 \texttt{\{question\}}
 
-\textbf{Original response:}
-\texttt{\{original response\}}
+\textbf{Original rejected response:}
+\texttt{\{rejected response\}}
 
-\textbf{Previous rewrite that failed validation:}
-\texttt{\{failed rewrite\}}
+\textbf{Current chosen rewrite:}
+\texttt{\{chosen response\}}
 
-\textbf{Stage 1 critiques:}
-\texttt{\{critique list\}}
+\textbf{Original hallucination tags and severity:}
+\texttt{\{rejected tag text\}}
 
-\textbf{Stage 3 validation feedback:}
+\textbf{API judge feedback:}
 \texttt{\{judge votes and reasons\}}
 
-\textbf{Instructions.}
-Produce a corrected final answer that should be preferred over the original response. Fix every hallucination identified in the critiques. Address the validation reasons, especially rejected votes. Preserve correct supported visual content from the original response. Do not introduce new unsupported objects, attributes, relations, counts, actions, or identities. Output only the repaired answer. Do not include markdown, labels, or explanations.
+\textbf{Final corrected answer:}
 \end{quote}
 
 \subsection{Repaired-Pair Verification Prompt}
 \label{app:repair-verify-prompt}
 
-After LLaVA repair, the same Gemini/GPT validation prompt in Appendix~\ref{app:api-validation-prompt} is reused to verify repaired pairs. The repaired answer is placed in the chosen-response field, the original hallucinated answer remains the rejected response, and the judge returns the same JSON schema:
+After LLaVA repair, the same Gemini/GPT validation prompt in Appendix~\ref{app:api-validation-prompt} is reused to verify repaired pairs. In the reported two-shot experiment, repaired-pair verification uses GPT-4.1-mini with the two-shot calibration block from Appendix~\ref{app:two-shot-validation-prompt}. The repaired answer is placed in the chosen-response field, the original hallucinated answer remains the rejected response, and the judge returns the same JSON schema:
 \begin{quote}
 \small
 \texttt{\{"approved": true/false, "reason": "one concise sentence"\}}

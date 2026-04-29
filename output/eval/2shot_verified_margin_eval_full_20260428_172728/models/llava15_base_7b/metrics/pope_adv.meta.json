@@ -1,6 +1,0 @@
-{
-  "question_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/pope/llava_pope_test.jsonl",
-  "annotation_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/pope/llava_pope_test.jsonl",
-  "image_root": "/workspace/Hallucination_Detection_VLM/playground/data/eval/pope/val2014",
-  "num_examples": 3000
-}

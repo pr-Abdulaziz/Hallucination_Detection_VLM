@@ -477,6 +477,33 @@ class _Stats:
         }
 
 
+def _normalize_input_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Accept either detector outputs or Stage 1 D_FAIF critique records.
+
+    The diagram shows critique extraction flowing directly into critique-guided
+    rewriting. Some runs use local detector outputs with ``original_response``
+    and ``detected_critiques`` fields, while released-supervision runs use the
+    Stage 1 D_FAIF schema with ``response_text`` and ``critiques``. Normalizing
+    here keeps both paths compatible with the same rewrite/preference builder.
+    """
+
+    normalized = dict(row)
+    if "original_response" not in normalized:
+        normalized["original_response"] = row.get("response_text", "")
+    if "detected_critiques" not in normalized:
+        normalized["detected_critiques"] = list(row.get("critiques") or [])
+    if "is_hallucinated_pred" not in normalized:
+        normalized["is_hallucinated_pred"] = bool(row.get("is_hallucinated"))
+    if "response_severity_score" not in normalized:
+        normalized["response_severity_score"] = aggregate_severity(
+            list(normalized.get("detected_critiques") or [])
+        )
+    metadata = dict(normalized.get("metadata") or {})
+    metadata.setdefault("normalized_for_stage4_rewrite", True)
+    normalized["metadata"] = metadata
+    return normalized
+
+
 def _skip_reason(row: dict[str, Any], *, image_root: str, allow_missing_images: bool) -> str | None:
     if not row.get("is_hallucinated_pred"):
         return "predicted_non_hallucinated"
@@ -594,6 +621,7 @@ def _iter_outputs(
     progress = maybe_tqdm(rows, desc="Paper Stage 4 rewrite", total=None)
     processed = 0
     for row in progress:
+        row = _normalize_input_row(row)
         stats.input_rows += 1
         reason = _skip_reason(row, image_root=image_root, allow_missing_images=allow_missing_images)
         if reason == "predicted_non_hallucinated":

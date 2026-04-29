@@ -154,6 +154,64 @@ class PaperStage1And2Tests(unittest.TestCase):
 
 
 class PaperStage4Tests(unittest.TestCase):
+    def test_stage4_accepts_stage1_d_faif_records_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            image = tmp_dir / "image.jpg"
+            image.write_bytes(b"placeholder")
+            stage1_records = tmp_dir / "d_faif.jsonl"
+            rewrites = tmp_dir / "rewrite_records.jsonl"
+            prefs = tmp_dir / "preference_pairs.jsonl"
+            stats_path = tmp_dir / "stats.json"
+            write_jsonl(
+                stage1_records,
+                [
+                    {
+                        "id": 1,
+                        "image": str(image),
+                        "question": "What is shown?",
+                        "response_text": "A gold cross is on the tower.",
+                        "is_hallucinated": True,
+                        "critiques": [
+                            {
+                                "hallucination_type": "object",
+                                "severity_label": "major",
+                                "severity_score": 3,
+                                "evidence_text": "gold cross",
+                                "rationale": "The gold cross is not visible.",
+                            }
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "image": str(image),
+                        "question": "What is shown?",
+                        "response_text": "A tower is visible.",
+                        "is_hallucinated": False,
+                        "critiques": [],
+                    },
+                ],
+            )
+
+            rc = paper_stage4_main(
+                [
+                    "--input", str(stage1_records),
+                    "--output", str(rewrites),
+                    "--preferences-out", str(prefs),
+                    "--stats-out", str(stats_path),
+                    "--backend", "template",
+                    "--image-root", str(tmp_dir),
+                ]
+            )
+            self.assertEqual(rc, 0)
+            pref_rows = _read_jsonl(prefs)
+            stats = json.loads(stats_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(pref_rows), 1)
+            self.assertEqual(pref_rows[0]["rejected"], "A gold cross is on the tower.")
+            self.assertEqual(pref_rows[0]["rejected_score"], 3.0)
+            self.assertEqual(stats["input_rows"], 2)
+            self.assertEqual(stats["predicted_non_hallucinated_skipped"], 1)
+
     def test_stage4_builds_preference_and_filters_identical_rewrite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)

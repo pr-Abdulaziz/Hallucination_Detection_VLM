@@ -1,0 +1,6 @@
+model,pope_accuracy,pope_precision,pope_recall,pope_f1,object_chairs,object_chairi,amber_chair,amber_hal
+Base LLaVA,85.13,89.92,79.13,84.18,53.00,15.72,7.70,35.90
+Direct HSA-DPO,85.03,90.70,78.07,83.91,38.00,11.74,5.50,25.10
+Standard DPO,85.00,90.63,78.07,83.88,37.67,11.98,5.20,25.20
+Zero-shot HSA-DPO-M,84.93,90.25,78.33,83.87,36.00,10.41,5.30,25.50
+Two-shot HSA-DPO-M,,,,,40.33,12.81,5.60,26.90
