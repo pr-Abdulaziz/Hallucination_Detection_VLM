@@ -1,0 +1,12 @@
+{
+  "benchmark": "amber",
+  "model_id": "llava15_base_7b",
+  "metrics": {
+    "amber_chair": 7.7,
+    "amber_cover": 51.7,
+    "amber_hal": 35.9,
+    "amber_cog": 4.3
+  },
+  "comparable_to_paper": false,
+  "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+}

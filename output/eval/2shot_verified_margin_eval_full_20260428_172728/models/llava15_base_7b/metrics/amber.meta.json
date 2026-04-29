@@ -1,0 +1,6 @@
+{
+  "annotation_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/amber/annotations.jsonl",
+  "question_file": "/workspace/Hallucination_Detection_VLM/playground/data/eval/amber/query_generative.jsonl",
+  "num_examples": 1004,
+  "protocol": "AMBER generative automatic metric"
+}

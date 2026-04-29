@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-missing-datasets", action="store_true", help="Skip missing benchmark assets instead of failing.")
     parser.add_argument("--openai-judge-model", default=None, help="Judge model for MMHal-Bench and LLaVA-Bench supplemental scoring.")
     parser.add_argument("--limit", type=int, default=None, help="Optional row limit for smoke tests.")
+    parser.add_argument("--stage3-dir", default=None, help="Optional Stage 3 directory to summarize in --general reports.")
+    parser.add_argument("--stage4-dir", default=None, help="Optional Stage 4/training directory to summarize in --general reports.")
     return parser.parse_args()
 
 
@@ -100,13 +102,15 @@ def _benchmark_spec(name: str, args: argparse.Namespace) -> BenchmarkSpec:
     )
 
 
-def _stage_metrics() -> dict[str, dict]:
+def _stage_metrics(args: argparse.Namespace) -> dict[str, dict]:
     discovered = discover_stage_paths()
     stage_metrics: dict[str, dict] = {}
-    if "stage3_dir" in discovered:
-        stage_metrics["stage3"] = summarize_stage3(discovered["stage3_dir"])
-    if "stage4_dir" in discovered:
-        stage_metrics["stage4"] = summarize_stage4(discovered["stage4_dir"])
+    stage3_dir = args.stage3_dir or discovered.get("stage3_dir")
+    stage4_dir = args.stage4_dir or discovered.get("stage4_dir")
+    if stage3_dir:
+        stage_metrics["stage3"] = summarize_stage3(stage3_dir)
+    if stage4_dir:
+        stage_metrics["stage4"] = summarize_stage4(stage4_dir)
     return stage_metrics
 
 
@@ -189,7 +193,7 @@ def main() -> int:
                 continue
             raise
 
-    stage_metrics = _stage_metrics() if args.general else {}
+    stage_metrics = _stage_metrics(args) if args.general else {}
     general_report = build_general_report(stage_metrics, metric_artifacts)
     paper_rows = build_paper_comparison(metric_artifacts, models) if (args.paper_core or args.supplemental) else []
     write_comparison_bundle(

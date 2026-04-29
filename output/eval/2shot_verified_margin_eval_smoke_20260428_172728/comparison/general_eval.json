@@ -1,0 +1,92 @@
+{
+  "stage_metrics": {
+    "stage3": {
+      "stage3_dir": "output\\fghd\\released_pref_stage3_2shot_experiment",
+      "total_rows": 8386,
+      "accepted_rows": 7132,
+      "rejected_rows": 1254,
+      "api_judge": "gemini_openai",
+      "decision_rule": "either",
+      "prompt_mode": "two_shot",
+      "gemini_model": "gemini-2.5-flash-lite",
+      "openai_model": "gpt-4o-mini",
+      "workers": 3
+    },
+    "stage4": {
+      "stage4_dir": "output\\fghd\\exp_2shot_verified_margin_hsa_b32_e1",
+      "final_train_loss": 0.6542
+    }
+  },
+  "benchmarks": [
+    {
+      "benchmark": "amber",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "amber_chair": 3.2,
+        "amber_cover": 43.8,
+        "amber_hal": 20.0,
+        "amber_cog": 0.0
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "chairs": 20.0,
+        "chairi": 6.451612903225806
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "llava15_base_7b",
+      "metrics": {
+        "f1": null,
+        "pope_adv_f1": null,
+        "precision": 0.0,
+        "recall": null,
+        "accuracy": 80.0
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    },
+    {
+      "benchmark": "amber",
+      "model_id": "two_shot_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "amber_chair": 0.0,
+        "amber_cover": 40.6,
+        "amber_hal": 0.0,
+        "amber_cog": 0.0
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "local AMBER generative evaluation; automatic and no external judge API"
+    },
+    {
+      "benchmark": "object_halbench",
+      "model_id": "two_shot_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "chairs": 40.0,
+        "chairi": 5.714285714285714
+      },
+      "comparable_to_paper": false,
+      "comparison_note": "rule-based Object HalBench CHAIR; no GPT/OpenAI object extraction"
+    },
+    {
+      "benchmark": "pope_adv",
+      "model_id": "two_shot_verified_margin_hsa_b32_e1",
+      "metrics": {
+        "f1": null,
+        "pope_adv_f1": null,
+        "precision": 0.0,
+        "recall": null,
+        "accuracy": 80.0
+      },
+      "comparable_to_paper": true,
+      "comparison_note": null
+    }
+  ]
+}

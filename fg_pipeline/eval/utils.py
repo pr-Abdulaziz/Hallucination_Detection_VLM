@@ -226,12 +226,21 @@ def summarize_stage3(stage3_dir: str | Path) -> dict[str, Any]:
     payload = load_json(stats_path)
     for key in (
         "total_input_rows",
+        "total_rows",
         "vote_rows_processed",
         "preference_pairs_emitted",
+        "accepted_rows",
+        "rejected_rows",
         "dropped_rows",
         "backend",
+        "api_judge",
+        "decision_rule",
+        "prompt_mode",
+        "gemini_model",
+        "openai_model",
         "vote_count",
         "approvals_required",
+        "workers",
     ):
         if key in payload:
             result[key] = payload[key]

@@ -1,0 +1,13 @@
+{
+  "benchmark": "pope_adv",
+  "model_id": "llava15_base_7b",
+  "metrics": {
+    "f1": null,
+    "pope_adv_f1": null,
+    "precision": 0.0,
+    "recall": null,
+    "accuracy": 80.0
+  },
+  "comparable_to_paper": true,
+  "comparison_note": null
+}

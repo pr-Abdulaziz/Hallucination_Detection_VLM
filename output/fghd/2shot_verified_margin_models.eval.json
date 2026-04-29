@@ -1,0 +1,22 @@
+[
+  {
+    "model_id": "llava15_base_7b",
+    "model_path": "models/llava-v1.5-7b",
+    "model_base": null,
+    "kind": "base",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  },
+  {
+    "model_id": "two_shot_verified_margin_hsa_b32_e1",
+    "model_path": "output/fghd/exp_2shot_verified_margin_hsa_b32_e1",
+    "model_base": "models/llava-v1.5-7b",
+    "kind": "lora",
+    "conv_mode": "vicuna_v1",
+    "temperature": 0.0,
+    "num_beams": 1,
+    "max_new_tokens": 512
+  }
+]
