@@ -73,6 +73,15 @@ desktop.ini
 *.out
 *.synctex.gz
 
+# Keep paper sources and exported paper PDFs in version control
+!asset/paper/
+!asset/paper/*.tex
+!asset/paper/*.bib
+!asset/paper/*.sty
+!asset/paper/*.txt
+!asset/paper/*.md
+!asset/paper/*.pdf
+
 # Coverage
 .coverage
 .coverage.*
