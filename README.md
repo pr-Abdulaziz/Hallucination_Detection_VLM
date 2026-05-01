@@ -393,4 +393,4 @@ If full training artifacts are needed for backup, store them externally through 
 
 - **Open-Source Communities:** This project builds on the released HSA-DPO method, the LLaVA training ecosystem, Hugging Face tooling, Visual Genome data, and open-source Python deep learning libraries.
 - **Individuals:** The work was completed by Abdulaziz Alqahtani and Alwaleed Alharthi at KFUPM under the supervision of Dr. Muzammil Behzad.
-- **Resource Providers:** The project was self-funded using rented VastAI GPU compute, including an NVIDIA RTX 6000 Ada Generation GPU with 48 GB VRAM, and hosted API usage; the total cost exceeded USD 120.
+- **Resource Providers:** The project was self-funded using rented VastAI GPU compute, including an NVIDIA RTX 6000 Ada Generation GPU with 48 GB VRAM, and hosted API usage; the total cost exceeded USD 150.

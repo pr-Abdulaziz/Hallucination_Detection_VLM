@@ -21,7 +21,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 
-\title{Implementing and Analyzing a Fine-Grained Hallucination Mitigation Pipeline for Large Vision-Language Models}
+\title{Fine-Grained Hallucination Detection and Severity-Aware Mitigation in Vision-Language Models}
 
 \author{%
   Abdulaziz Alqahtani\\
@@ -328,7 +328,7 @@ This work implemented and evaluated a fine-grained hallucination mitigation pipe
 The main conclusion is therefore not that severity-aware preference optimization universally improves LVLM hallucination behavior, but that fine-grained critique supervision provides a useful and inspectable training signal when it is aligned with the evaluation setting. Severity-aware methods can reduce unsupported visual content, especially in open-ended responses, but their success depends on the quality of preference pairs, the strictness of validation, and the benchmark objective. Future work should improve the judged-repair path, evaluate larger and more diverse LVLM backbones, and study how to preserve visual coverage while reducing hallucination.
 
 \begin{ack}
-This project was self-funded. The total project cost, including rented GPU compute and hosted API usage for preference validation, repair verification, training, and evaluation, exceeded USD 120.
+This project was self-funded. The total project cost, including rented GPU compute and hosted API usage for preference validation, repair verification, training, and evaluation, exceeded USD 150.
 \end{ack}
 
 \bibliographystyle{plainnat}
