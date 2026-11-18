@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beyond Seeing: Fine-Grained Preference Validation and Severity-Aware Alignment</title>
+  <meta name="description" content="Fine-grained preference validation and severity-aware alignment for mitigating visual hallucinations in LLaVA-1.5-7B, evaluated on POPE, Object HalBench and AMBER.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">Visual hallucination in vision-language models</p>
+  <h1>Beyond Seeing: Fine-Grained Preference Validation and Severity-Aware Alignment for Mitigating Visual Hallucinations in Vision-Language Models</h1>
+  <p class="authors">Abdulaziz Alqahtani<sup>1</sup>, Alwaleed Alharthi<sup>1</sup>, Muzammil Behzad<sup>1,2,*</sup></p>
+  <p class="affil">
+    <span><sup>1</sup> King Fahd University of Petroleum &amp; Minerals, Saudi Arabia</span>
+    <span><sup>2</sup> SDAIA-KFUPM Joint Research Center for Artificial Intelligence, Saudi Arabia</span>
+    <span><sup>*</sup> Corresponding author: Muzammil Behzad (<a href="mailto:muzammil.behzad@kfupm.edu.sa">muzammil.behzad@kfupm.edu.sa</a>)</span>
+  </p>
+
+  <nav class="links" aria-label="Project links">
+    <a class="btn btn-arxiv" href="https://arxiv.org/abs/2611.20478">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l14 16M19 4L5 20"></path></svg>
+      <span>arXiv</span>
+    </a>
+    <a class="btn btn-code" href="https://github.com/BRAIN-Lab-AI/Fine-Grained-Hallucination-Detection-and-Severity-Aware-Mitigation-in-Vision-Language-Models">
+      <svg class="fill" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+      <span>Code</span>
+    </a>
+    <a class="btn btn-weights is-disabled" aria-disabled="true" title="Checkpoints will be released soon">
+      <img class="hf" src="assets/hf-logo.svg" width="28" height="28" alt="" aria-hidden="true">
+      <span>Checkpoints</span>
+      <small>Soon</small>
+    </a>
+  </nav>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#abstract">Abstract</a>
+    <a href="#introduction">Introduction</a>
+    <a href="#related-work">Related work</a>
+    <a href="#method">Method</a>
+    <a href="#experiments">Experimental setup</a>
+    <a href="#results">Results</a>
+    <a href="#discussion">Discussion</a>
+    <a href="#conclusion">Conclusion</a>
+    <a href="#appendix">Appendix</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ ABSTRACT ============ -->
+  <section id="abstract">
+    <h2>Abstract</h2>
+    <p>
+      Large vision-language models can produce fluent responses containing objects, attributes, or relations
+      unsupported by the image. We study an implemented alignment pipeline that normalizes released fine-grained
+      hallucination supervision, validates chosen–rejected preference pairs with vision-language judges, repairs
+      rejected chosen responses, and trains LLaVA adapters with standard or severity-aware direct preference
+      optimization. The study uses 16,143 normalized feedback records and 8,386 released preference pairs, comparing
+      direct training with zero-shot and two-shot judged severity-margin variants. The zero-shot variant reduces
+      Object HalBench CHAIR<sub>s</sub> from 53.00 to 36.00 and CHAIR<sub>i</sub> from 15.72 to 10.41. Across aligned
+      models, AMBER-Hal decreases from 35.90 to 25.10–26.90, accompanied by reduced visual coverage. In contrast, the
+      base model retains the highest valid POPE adversarial F1, 84.18 versus 83.87–83.91 after alignment. These
+      results support benchmark-dependent reductions in generative hallucination rather than uniform superiority of
+      severity-aware alignment. We distinguish implemented pipeline components from the preference paths used in the
+      reported experiments and discuss the limits of attributing gains to judging, repair, or the training objective
+      individually.
+    </p>
+    <p class="keywords"><strong>Index Terms:</strong> vision-language models; visual hallucination; preference validation; direct preference optimization; severity-aware alignment.</p>
+  </section>
+
+  <!-- ============ INTRODUCTION ============ -->
+  <section id="introduction">
+    <h2>I. Introduction</h2>
+    <p>
+      Large vision-language models (LVLMs) combine visual representations with language generation to support image
+      description, visual question answering, and multimodal assistance. BLIP-2, LLaVA, and InstructBLIP illustrate
+      different ways to connect pretrained visual and language components through cross-modal interfaces and
+      instruction tuning [1, 2, 3]. Their fluency, however, does not guarantee that every generated claim is visually
+      grounded. A response may correctly identify the main scene while inventing an object, assigning an unsupported
+      attribute, or describing an incorrect relationship.
+    </p>
+    <figure>
+      <img src="assets/fig1_pipeline.png" width="1693" height="929" loading="lazy" alt="Overview of the fine-grained hallucination-mitigation pipeline: critique extraction, judged validation and repair, and severity-aware DPO training">
+      <figcaption><strong>Figure 1.</strong> Overview of the implemented fine-grained hallucination-mitigation pipeline.</figcaption>
+    </figure>
+    <p>
+      This mixture of grounded and unsupported content motivates fine-grained supervision. A response-level label does
+      not indicate which claims require correction or distinguish a minor attribute error from a fabricated entity
+      central to the answer. Fine-grained feedback instead associates errors with categories, evidence spans,
+      rationales, and severity. Previous work has used such feedback for hallucination detection and preference
+      alignment, including HSA-DPO [4, 5]. Our work builds on released supervision from this line of research; it does
+      not introduce a newly annotated benchmark or claim the original severity-aware DPO framework.
+    </p>
+    <p>
+      Turning feedback into alignment data remains a practical challenge. A rewritten chosen response can retain the
+      original hallucination, introduce another unsupported claim, or remove useful information. Preference
+      optimization then receives a misleading or weak comparison. We investigate a workflow that checks released pairs
+      with external vision-language judges, repairs rejected chosen responses locally, re-verifies repairs, and trains
+      adapters on the retained data. Severity is incorporated either through the direct HSA-DPO path or through a
+      normalized margin in the DPO objective.
+    </p>
+
+    <h3>What we study</h3>
+    <ol class="objectives">
+      <li>The conversion of released feedback into <strong>inspectable critique records</strong>.</li>
+      <li>The effect of <strong>validation and repair</strong> on preference retention.</li>
+      <li><strong>Benchmark-dependent alignment behavior</strong> of standard DPO, direct HSA-DPO, and judged severity-margin variants.</li>
+    </ol>
+    <p>
+      The zero-shot judged margin variant is strongest on Object HalBench, while simpler baselines are slightly better
+      on selected AMBER measures. None of the variants with valid POPE F1 surpasses the base model. This motivates a
+      practical analysis of preference quality and severity-aware alignment with explicit tradeoffs.
+    </p>
+  </section>
+
+  <!-- ============ RELATED WORK ============ -->
+  <section id="related-work">
+    <h2>II. Related Work</h2>
+
+    <h3>II-A Evaluation of visual hallucination</h3>
+    <p>
+      Visual hallucination evaluation depends on the task and the unit of analysis. CHAIR measures unsupported object
+      mentions in generated captions [6]. POPE probes object presence using binary questions [7], whereas AMBER
+      provides an LLM-free evaluation framework for several hallucination dimensions [8]. HallusionBench further
+      examines failures involving visual illusion and language hallucination [9]. Unified multimodal detection studies
+      also emphasize the variety of hallucination types [10]. These evaluations are complementary: a model can become
+      more cautious in open-ended generation without improving the precision–recall balance of binary answers. We
+      therefore report benchmark-specific metrics without aggregating them into a single score.
+    </p>
+
+    <h3>II-B Feedback and preference alignment</h3>
+    <p>
+      Training-based mitigation includes robust instruction tuning [11], preference distillation as in Silkie [12],
+      and alignment with fine-grained correctional feedback as in RLHF-V [13]. DPO learns from chosen–rejected
+      response pairs relative to a reference policy, without separately training a reward model [14]. HSA-DPO
+      incorporates hallucination severity into this preference-learning setting [5]. Our implementation uses released
+      HSA-DPO feedback and preferences, adds explicit judged validation and repair paths, and compares a
+      severity-margin formulation with direct HSA-DPO and standard DPO. Since the judged variants change both the
+      training examples and the objective, their comparison with direct DPO is a pipeline comparison rather than an
+      isolated objective ablation.
+    </p>
+  </section>
+
+  <!-- ============ METHOD ============ -->
+  <section id="method">
+    <h2>III. Method</h2>
+
+    <h3>III-A Feedback representation and experimental scope</h3>
+    <p>
+      Let <i>I<sub>i</sub></i> denote an image, <i>x<sub>i</sub></i> an instruction, and
+      <i>ŷ<sub>i</sub></i> an original response. We parse released annotations into critique sets
+      <i>H<sub>i</sub></i> = {<i>h<sub>ij</sub></i>}<span class="ss"><span><i>T<sub>i</sub></i></span><span><i>j</i>=1</span></span>,
+      with an error category, evidence text, rationale, and severity for each available finding. Categories are
+      normalized to <strong>object</strong>, <strong>attribute</strong>, and <strong>relationship</strong> errors when
+      the source provides them. The three-level severity rubric assigns minor, moderate, and major errors scores of 1,
+      2, and 3. Let <i>J<sub>i</sub></i> index critiques with numeric severity scores. Response severity averages
+      these available scores:
+    </p>
+    <p class="eq">
+      <i>S<sub>i</sub></i> = <span class="frac"><span>1</span><span>|<i>J<sub>i</sub></i>|</span></span>
+      ∑<span class="ss"><span>&nbsp;</span><span><i>j</i>∈<i>J<sub>i</sub></i></span></span>
+      <i>s<sub>ij</sub></i>, &nbsp;&nbsp; |<i>J<sub>i</sub></i>| &gt; 0.
+      <span class="no">(1)</span>
+    </p>
+    <p>
+      Clean examples retain an empty critique set and are not forced into the rewrite branch. Metadata preserves the
+      original annotation and its provenance.
+    </p>
+    <p>
+      The pipeline also supports detector-style data construction and critique-conditioned rewriting. A rewriter
+      receives (<i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>, <i>H<sub>i</sub></i>) and is
+      instructed to remove unsupported claims while preserving supported information. Empty, identical, or otherwise
+      invalid candidate pairs are filtered. These components document the path from annotations to preference data;
+      the reported alignment experiments primarily use the released preference pairs, rather than a complete
+      regeneration of all chosen responses or a newly evaluated learned detector. Figure 1 summarizes the workflow;
+      its example annotations are schematic.
+    </p>
+
+    <h3>III-B Direct and judged preference paths</h3>
+    <p>
+      A preference example is <i>p<sub>i</sub></i> = (<i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>,
+      <i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span>,
+      <i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span>, <i>S<sub>i</sub></i>), where
+      <i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span> and
+      <i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span> are the chosen and rejected responses and
+      <i>S<sub>i</sub></i> refers to rejected-response severity. The <strong>direct path</strong> uses the released
+      preference set without additional API judging and supplies the standard DPO and direct HSA-DPO runs.
+    </p>
+    <p>
+      The <strong>judged path</strong> presents each released pair and its image to Gemini-2.5-Flash-Lite and
+      GPT-4o-mini. Each judge returns a Boolean approval and a short reason. The reported experiments accept a pair
+      when either judge approves; they do not require agreement between both judges. The rubric asks whether the
+      chosen response clearly improves visual grounding, reduces the identified hallucination, preserves essential
+      supported content, and avoids introducing an important hallucination. Approval is an automated
+      preference-quality decision, not independently established ground truth.
+    </p>
+    <p>
+      The <strong>zero-shot</strong> setting supplies the rubric directly. The <strong>two-shot</strong> setting adds
+      two text-only calibration examples illustrating approval and rejection. The examples explain the decision rule;
+      they are not additional images or annotations for the target sample. A rejected pair is routed to LLaVA-1.5-7B
+      for repair of <i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span> while
+      <i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span> remains fixed. GPT-4.1-mini re-verifies
+      repaired pairs using the same approval rubric, with the calibration block in the two-shot setting. Only approved
+      repairs are merged with initially accepted pairs:
+    </p>
+    <p class="eq">
+      <i>D</i><sub>judged</sub> = <i>D</i><sub>accepted</sub> ∪ <i>D</i><sub>approved repairs</sub>.
+      <span class="no">(2)</span>
+    </p>
+    <p>
+      Judge decisions and reasons are retained in audit metadata. Repair failures and unsuccessful re-verifications do
+      not enter this final verified set. A subsequent preparation step can further reduce the number of train-ready
+      records; we report both counts.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <caption><strong>Table I.</strong> Judged preference construction for zero-shot and two-shot paths.</caption>
+        <thead>
+          <tr><th>Path</th><th class="num">Source</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Repaired</th><th class="num">Approved repairs</th><th class="num">Verified</th><th class="num">Train-ready</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Zero-shot</td><td class="num">8,386</td><td class="num">7,818</td><td class="num">568</td><td class="num">473</td><td class="num">244</td><td class="num">8,062</td><td class="num">8,062</td></tr>
+          <tr><td>Two-shot</td><td class="num">8,386</td><td class="num">7,132</td><td class="num">1,254</td><td class="num">1,063</td><td class="num">746</td><td class="num">7,878</td><td class="num">7,874</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>III-C DPO and severity-margin alignment</h3>
+    <p>
+      For a trainable policy <i>π<sub>θ</sub></i> and frozen reference <i>π</i><sub>ref</sub>, define the preference gap
+    </p>
+    <p class="eq">
+      Δ<sub><i>i</i></sub> = log
+      <span class="frac"><span><i>π<sub>θ</sub></i>(<i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>)</span><span><i>π<sub>θ</sub></i>(<i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>)</span></span>
+      − log
+      <span class="frac"><span><i>π</i><sub>ref</sub>(<i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>)</span><span><i>π</i><sub>ref</sub>(<i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>)</span></span>.
+      <span class="no">(3)</span>
+    </p>
+    <p>
+      Standard DPO minimizes −𝔼<sub><i>i</i></sub> log <i>σ</i>(<i>β</i>Δ<sub><i>i</i></sub>) [14]. The direct
+      HSA-DPO run weights the rejected-response log-probability in both the policy and reference terms, leaving the
+      chosen-response terms unweighted, following the released severity-aware training path [5]. The margin variant
+      keeps the ordinary policy/reference gap and shifts it using rejected-response severity:
+    </p>
+    <p class="eq">
+      <i>S̄<sub>i</sub></i> = clip(<i>S<sub>i</sub></i>, 0, 3) / 3,
+      <span class="no">(4)</span>
+    </p>
+    <p class="eq">
+      ℒ<sub>margin</sub> = −𝔼<sub><i>i</i></sub> log <i>σ</i>(<i>β</i> [Δ<sub><i>i</i></sub> − <i>λ</i><i>S̄<sub>i</sub></i>]).
+      <span class="no">(5)</span>
+    </p>
+    <p>
+      Larger severity requires a larger chosen–rejected gap for the same loss. Setting <i>λ</i> = 0 recovers standard
+      DPO. In the reported judged variants, <i>λ</i> = 0.5 and <i>β</i> = 0.1. This formulation describes the
+      implemented loss, with the margin inside the multiplication by <i>β</i>.
+    </p>
+  </section>
+
+  <!-- ============ EXPERIMENTAL SETUP ============ -->
+  <section id="experiments">
+    <h2>IV. Experimental Setup</h2>
+
+    <h3>IV-A Data and model variants</h3>
+    <p>
+      The normalized feedback collection contains <strong>16,143 records</strong>: 7,643 hallucinated and 8,500
+      non-hallucinated examples. The main alignment source contains <strong>8,386 released preference pairs</strong>.
+      These counts describe distinct data representations and should not be added together as independent training
+      examples. Table I summarizes the judged paths.
+    </p>
+    <p>We compare five models:</p>
+    <ul class="plain">
+      <li>the unaligned <strong>LLaVA-1.5-7B</strong> baseline,</li>
+      <li><strong>standard DPO</strong>,</li>
+      <li><strong>direct HSA-DPO</strong>,</li>
+      <li><strong>zero-shot judged HSA-DPO-M</strong>, and</li>
+      <li><strong>two-shot judged HSA-DPO-M</strong>.</li>
+    </ul>
+    <p>
+      All trained variants use the same backbone and nominal optimization settings. Their preference sets differ, so
+      equal epochs and effective batch size do not imply identical numbers of parameter updates. The comparisons do
+      not isolate the effects of judging, repair, severity margin, and sample count individually.
+    </p>
+
+    <h3>IV-B Training and evaluation protocol</h3>
+    <p>
+      Adapters were trained for one epoch on a rented NVIDIA RTX 6000 Ada Generation GPU with 48 GB VRAM. The DPO
+      coefficient was <i>β</i> = 0.1 throughout. These shared settings support a practical comparison under a common
+      configuration; no repeated-seed uncertainty estimates are available in the retained summaries.
+    </p>
+    <dl class="settings">
+      <div><dt>Backbone</dt><dd>LLaVA-1.5-7B</dd></div>
+      <div><dt>Epochs</dt><dd>1</dd></div>
+      <div><dt>Per-device batch</dt><dd>1</dd></div>
+      <div><dt>Effective batch</dt><dd>32</dd></div>
+      <div><dt>Learning rate</dt><dd>2 × 10<sup>−6</sup></dd></div>
+      <div><dt>LoRA rank / scaling</dt><dd>128 / 256</dd></div>
+      <div><dt>Max sequence length</dt><dd>1024</dd></div>
+      <div><dt>Scheduler</dt><dd>Cosine, no warmup</dd></div>
+      <div><dt>Weight decay</dt><dd>0</dd></div>
+      <div><dt>DPO <i>β</i> / margin <i>λ</i></dt><dd>0.1 / 0.5 (margin variants)</dd></div>
+      <div><dt>Hardware</dt><dd>1 × NVIDIA RTX 6000 Ada (48 GB)</dd></div>
+      <div><dt>Seeds</dt><dd>Single run; no repeated-seed estimates</dd></div>
+    </dl>
+    <p>
+      Evaluation covers <strong>POPE adversarial</strong>, <strong>Object HalBench</strong>, and
+      <strong>AMBER</strong>. POPE accuracy, precision, recall, and F1 are percentages, with higher values preferred.
+      Object HalBench CHAIR<sub>s</sub> and CHAIR<sub>i</sub> quantify sentence- and instance-level object
+      hallucination. We retain the local AMBER-CHAIR, Hal, Cog, and Cover labels used in the experiment report; lower
+      values are preferred for the first three, while higher Cover reflects more visual coverage. Object HalBench and
+      AMBER values are reported as supplemental local evaluations, not assumed to match every published protocol. The
+      retained compact summaries do not establish all sample-level settings or uncertainty; external leaderboard
+      comparisons require additional protocol verification.
+    </p>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="results">
+    <h2>V. Results</h2>
+
+    <h3>V-A Preference retention and repair</h3>
+    <p>
+      Table I reports the complete data flow. The zero-shot path retains <strong>8,062 train-ready pairs</strong>
+      after 244 approved repairs. The two-shot path recovers <strong>746 repairs</strong>, yielding 7,878 verified and
+      7,874 train-ready pairs. Calibration changes both initial judgment and repair re-verification, so downstream
+      differences cannot be attributed to either stage alone. Judge approval is not independently established ground
+      truth. The <a href="#appendix">appendix</a> provides retention rates and all prompt text.
+    </p>
+
+    <h3>V-B Binary object-presence evaluation</h3>
+    <p>
+      Table II reports all completed POPE results with valid recall and F1. The base model has the highest F1 at
+      84.18, compared with 83.88 for standard DPO, 83.91 for direct HSA-DPO, and 83.87 for zero-shot HSA-DPO-M.
+      Precision increases from 89.92 to 90.25–90.70 after alignment, while recall falls from 79.13 to 78.07–78.33.
+      The precision improvement therefore does not translate into higher F1. These small differences have no
+      accompanying uncertainty estimates and should not be interpreted as statistically established rankings.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <caption><strong>Table II.</strong> POPE adversarial results (%; higher is better).</caption>
+        <thead>
+          <tr><th>Model</th><th class="num">Accuracy</th><th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th></tr>
+        </thead>
+        <tbody>
+          <tr class="parent"><td>LLaVA-1.5-7B</td><td class="num">85.13</td><td class="num">89.92</td><td class="num">79.13</td><td class="num"><b>84.18</b></td></tr>
+          <tr><td>Standard DPO</td><td class="num">85.00</td><td class="num">90.63</td><td class="num">78.07</td><td class="num">83.88</td></tr>
+          <tr><td>Direct HSA-DPO</td><td class="num">85.03</td><td class="num">90.70</td><td class="num">78.07</td><td class="num">83.91</td></tr>
+          <tr class="ours"><td>Judged margin HSA-DPO-M (zero-shot)</td><td class="num">84.93</td><td class="num">90.25</td><td class="num">78.33</td><td class="num">83.87</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The two-shot POPE artifact lacks valid recall/F1; this variant is excluded from the POPE table and plot.</p>
+
+    <h3>V-C Generative hallucination and visual coverage</h3>
+    <p>
+      Table III and Figure 2 show larger numerical changes in generative evaluation. Object HalBench CHAIR<sub>s</sub>
+      falls from 53.00 to 37.67 for standard DPO, 38.00 for direct HSA-DPO, 36.00 for zero-shot HSA-DPO-M, and 40.33
+      for two-shot HSA-DPO-M. CHAIR<sub>i</sub> decreases from 15.72 to 10.41–12.81. The zero-shot judged margin run
+      achieves the lowest values on both Object HalBench metrics. The two-shot model improves relative to the base but
+      does not outperform the zero-shot model.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <caption><strong>Table III.</strong> Local generative evaluation: lower is better except for AMBER-Cover. Bold marks numerical best values.</caption>
+        <thead>
+          <tr><th></th><th class="group" colspan="2">Object HalBench</th><th class="group" colspan="4">AMBER</th></tr>
+          <tr><th>Model</th><th class="num">CHAIR<sub>s</sub></th><th class="num">CHAIR<sub>i</sub></th><th class="num">CHAIR</th><th class="num">Hal</th><th class="num">Cog</th><th class="num">Cover</th></tr>
+        </thead>
+        <tbody>
+          <tr class="parent"><td>Base LLaVA</td><td class="num">53.00</td><td class="num">15.72</td><td class="num">7.70</td><td class="num">35.90</td><td class="num">4.30</td><td class="num"><b>51.70</b></td></tr>
+          <tr><td>Standard DPO</td><td class="num">37.67</td><td class="num">11.98</td><td class="num"><b>5.20</b></td><td class="num">25.20</td><td class="num"><b>2.50</b></td><td class="num">49.90</td></tr>
+          <tr><td>Direct HSA-DPO</td><td class="num">38.00</td><td class="num">11.74</td><td class="num">5.50</td><td class="num"><b>25.10</b></td><td class="num"><b>2.50</b></td><td class="num">50.00</td></tr>
+          <tr class="ours"><td>Zero-shot HSA-DPO-M</td><td class="num"><b>36.00</b></td><td class="num"><b>10.41</b></td><td class="num">5.30</td><td class="num">25.50</td><td class="num"><b>2.50</b></td><td class="num">49.60</td></tr>
+          <tr class="ours"><td>Two-shot HSA-DPO-M</td><td class="num">40.33</td><td class="num">12.81</td><td class="num">5.60</td><td class="num">26.90</td><td class="num">2.70</td><td class="num">50.40</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure style="margin-top:22px">
+      <div class="fig-grid">
+        <img src="assets/pope_benchmark_histogram.png" width="2070" height="1462" loading="lazy" alt="POPE adversarial F1 by model">
+        <img src="assets/object_halbench_histogram.png" width="2070" height="1462" loading="lazy" alt="Object HalBench CHAIRs and CHAIRi by model">
+        <img src="assets/amber_chair_histogram.png" width="2069" height="1462" loading="lazy" alt="AMBER CHAIR by model">
+        <img src="assets/amber_hal_histogram.png" width="2070" height="1462" loading="lazy" alt="AMBER Hal by model">
+      </div>
+      <figcaption><strong>Figure 2.</strong> POPE F1 and generative hallucination scores. Two-shot POPE F1 is unavailable.</figcaption>
+    </figure>
+
+    <p>
+      On AMBER, all aligned models reduce CHAIR from 7.70 to 5.20–5.60, Hal from 35.90 to 25.10–26.90, and Cog from
+      4.30 to 2.50–2.70. Standard DPO yields the lowest AMBER-CHAIR (5.20), and direct HSA-DPO yields the lowest
+      AMBER-Hal (25.10). Consequently, severity-margin judging does not dominate the simpler alternatives across these
+      measures.
+    </p>
+    <p>
+      AMBER-Cover decreases from 51.70 to 49.60–50.40. This is consistent with a tradeoff between fewer unsupported
+      details and less extensive description, but the aggregate scores alone do not establish a causal mechanism. A
+      stronger analysis would compare matched image-level outputs and distinguish removal of hallucination from
+      omission of correctly grounded content.
+    </p>
+  </section>
+
+  <!-- ============ DISCUSSION ============ -->
+  <section id="discussion">
+    <h2>VI. Discussion and Limitations</h2>
+    <p>
+      Released feedback supports inspectable critique records, while judging and repair recover some initially
+      rejected pairs. These are data-processing outcomes, not evidence of a newly evaluated detector or error-free
+      preference labels. All aligned models improve the reported generative hallucination metrics, but the zero-shot
+      judged margin model does not dominate the direct baselines across AMBER. More repaired examples in the two-shot
+      path therefore do not imply a better final model.
+    </p>
+    <p>
+      The study uses one backbone and a limited set of completed runs. Judged variants change filtering, repair,
+      objective, and sample count together; matched-data experiments with fixed update counts are needed to isolate
+      their effects. No independent human audit, repeated-seed comparison, or confidence interval is reported. Hosted
+      judging can depend on model versions, prompts, and acceptance rules; the either-judge rule can retain disputed
+      pairs. Severity is an annotation scale rather than a calibrated real-world risk measure.
+    </p>
+    <p>
+      The two-shot POPE evaluation is incomplete, and some sample-level evaluation artifacts are not retained. Local
+      benchmark scores should not be equated with external leaderboard protocols without further verification. Future
+      work should complete POPE, recover per-example outputs, test validation-only and repair-only ablations, and
+      evaluate human judgments and visual coverage jointly. The supplementary appendix records implementation details
+      and derived comparisons without claiming additional experiments.
+    </p>
+  </section>
+
+  <!-- ============ CONCLUSION ============ -->
+  <section id="conclusion">
+    <h2>VII. Conclusion</h2>
+    <p>
+      We presented an inspectable preference-validation and severity-aware alignment workflow for visual hallucination
+      mitigation. Using released feedback and preference pairs, the implementation compares direct DPO/HSA-DPO with
+      zero-shot and two-shot judged severity-margin training. All aligned models reduce the reported Object HalBench
+      and AMBER hallucination metrics relative to LLaVA-1.5-7B, with the zero-shot margin variant strongest on Object
+      HalBench. The base model nevertheless retains the highest valid POPE F1, and AMBER coverage decreases after
+      alignment. The evidence therefore supports benchmark-dependent generative improvements with explicit coverage and
+      evaluation limitations. Controlled ablations and complete per-example evaluation are required before attributing
+      the gains to individual pipeline components.
+    </p>
+
+    <div class="callout">
+      <strong>Scope.</strong>
+      These results are for one backbone (LLaVA-1.5-7B) and a single completed run per variant, without repeated
+      seeds, confidence intervals, or a human audit. Judged variants change filtering, repair, objective and sample
+      count together, so gains cannot be attributed to any one component. Values are reported from the paper, not
+      re-measured.
+    </div>
+  </section>
+
+  <!-- ============ REFERENCES ============ -->
+  <section id="references">
+    <h2>References</h2>
+    <ol class="refs">
+      <li>J. Li, D. Li, S. Savarese, and S. Hoi. BLIP-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. <em>ICML</em>, PMLR 202, pp. 19730–19742, 2023.</li>
+      <li>H. Liu, C. Li, Q. Wu, and Y. J. Lee. Visual instruction tuning. <em>NeurIPS</em> 36, 2023.</li>
+      <li>W. Dai, J. Li, D. Li, A. M. H. Tiong, J. Zhao, W. Wang, B. Li, P. Fung, and S. C. Hoi. InstructBLIP: Towards general-purpose vision-language models with instruction tuning. <em>NeurIPS</em> 36, 2023.</li>
+      <li>A. Gunjal, J. Yin, and E. Bas. Detecting and preventing hallucinations in large vision language models. <em>AAAI</em> 38(16), pp. 18135–18143, 2024.</li>
+      <li>W. Xiao, Z. Huang, L. Gan, W. He, H. Li, Z. Yu, F. Shu, H. Jiang, and L. Zhu. Detecting and mitigating hallucination in large vision language models via fine-grained AI feedback. <em>AAAI</em> 39(24), pp. 25543–25551, 2025.</li>
+      <li>A. Rohrbach, L. A. Hendricks, K. Burns, T. Darrell, and K. Saenko. Object hallucination in image captioning. <em>EMNLP</em>, pp. 4035–4045, 2018.</li>
+      <li>Y. Li, Y. Du, K. Zhou, J. Wang, X. Zhao, and J. Wen. Evaluating object hallucination in large vision-language models. <em>EMNLP</em>, pp. 292–305, 2023.</li>
+      <li>J. Wang, Y. Wang, G. Xu, J. Zhang, Y. Gu, H. Jia, J. Wang, H. Xu, M. Yan, J. Zhang, and J. Sang. AMBER: An LLM-free multi-dimensional benchmark for MLLMs hallucination evaluation. arXiv:2311.07397, 2023.</li>
+      <li>T. Guan, F. Liu, X. Wu, R. Xian, Z. Li, X. Liu, X. Wang, L. Chen, F. Huang, Y. Yacoob, D. Manocha, and T. Zhou. HallusionBench: An advanced diagnostic suite for entangled language hallucination and visual illusion in large vision-language models. <em>CVPR</em>, pp. 14375–14385, 2024.</li>
+      <li>X. Chen, C. Wang, Y. Xue, N. Zhang, X. Yang, Q. Li, Y. Shen, L. Liang, J. Gu, and H. Chen. Unified hallucination detection for multimodal large language models. <em>ACL</em>, pp. 3235–3252, 2024.</li>
+      <li>F. Liu, K. Lin, L. Li, J. Wang, Y. Yacoob, and L. Wang. Mitigating hallucination in large multi-modal models via robust instruction tuning. <em>ICLR</em>, 2024.</li>
+      <li>L. Li, Z. Xie, M. Li, S. Chen, P. Wang, L. Chen, Y. Yang, B. Wang, and L. Kong. Silkie: Preference distillation for large visual language models. arXiv:2312.10665, 2023.</li>
+      <li>T. Yu, Y. Yao, H. Zhang, T. He, Y. Han, G. Cui, J. Hu, Z. Liu, H. Zheng, M. Sun, and T. Chua. RLHF-V: Towards trustworthy MLLMs via behavior alignment from fine-grained correctional human feedback. <em>CVPR</em>, pp. 13807–13816, 2024.</li>
+      <li>R. Rafailov, A. Sharma, E. Mitchell, C. D. Manning, S. Ermon, and C. Finn. Direct preference optimization: Your language model is secretly a reward model. <em>NeurIPS</em> 36, pp. 53728–53741, 2023.</li>
+    </ol>
+  </section>
+
+  <!-- ============ APPENDIX ============ -->
+  <section id="appendix">
+    <h2>Appendix</h2>
+    <p class="note" style="margin-top:0">
+      The supplement records details of the reported runs and their implementation. It adds no new training or
+      benchmark evaluation. Figure 1 is a schematic overview; its example scene, error labels, and aggregate severity
+      are illustrative.
+    </p>
+
+    <h3>A. Experimental configuration and objectives</h3>
+
+    <h4>A-A Data representations and model roles</h4>
+    <p>
+      The 16,143 normalized feedback records contain 7,643 hallucinated and 8,500 clean samples. Each critique can
+      retain type, evidence text, rationale, severity label, numeric severity, and raw annotation provenance. Unknown
+      or missing critique scores are not replaced by fabricated severity labels. The aggregation helper averages
+      available numeric scores and returns 0 when none are available. Clean records remain outside the hallucination
+      rewrite branch. Detector-style data preparation is implemented, but the reported alignment runs primarily
+      consume 8,386 released preference pairs. The feedback count and preference count are not disjoint populations to
+      be summed as a training-set size.
+    </p>
+    <p>
+      The base model and repair model are LLaVA-1.5-7B. Initial pair validation uses Gemini-2.5-Flash-Lite and
+      GPT-4o-mini. A pair is retained if either judge approves. Rejected pairs are repaired by changing only the
+      chosen response; the rejected response and its severity remain unchanged. GPT-4.1-mini re-verifies repaired
+      pairs, and only approved repairs join the initially accepted set. The two-shot condition inserts two text-only
+      examples into both initial validation and repair re-verification. It changes more than one judging stage.
+    </p>
+
+    <h4>A-B Shared training settings</h4>
+    <p>
+      Table IV records settings described in the experiment report and supported by the experiment-specific wrappers.
+      The direct standard-DPO and HSA-DPO wrappers set one epoch and effective batch size 32, overriding the generic
+      launcher's defaults. The two-shot margin wrapper also sets these values explicitly. Hardware is reported as a
+      rented NVIDIA RTX 6000 Ada Generation GPU with 48 GB VRAM. Equal epochs with different data sizes do not imply
+      equal update counts.
+    </p>
+    <div class="table-wrap">
+      <table style="max-width:560px">
+        <caption><strong>Table IV.</strong> Reported shared adapter-training configuration.</caption>
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Backbone</td><td>LLaVA-1.5-7B</td></tr>
+          <tr><td>Epochs</td><td>1</td></tr>
+          <tr><td>Per-device batch size</td><td>1</td></tr>
+          <tr><td>Effective batch size</td><td>32</td></tr>
+          <tr><td>Learning rate</td><td>2 × 10<sup>−6</sup></td></tr>
+          <tr><td>LoRA rank / scaling factor</td><td>128 / 256</td></tr>
+          <tr><td>Maximum sequence length</td><td>1024</td></tr>
+          <tr><td>Scheduler</td><td>Cosine</td></tr>
+          <tr><td>Warmup steps / weight decay</td><td>0 / 0</td></tr>
+          <tr><td>DPO coefficient <i>β</i></td><td>0.1</td></tr>
+          <tr><td>Margin scale <i>λ</i></td><td>0.5 (margin variants)</td></tr>
+          <tr><td>Severity normalizer</td><td>3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px">
+      The launcher additionally specifies BF16, TF32, gradient checkpointing, a multimodal-projector learning rate of
+      zero, and DeepSpeed ZeRO-3 configuration. These are implementation settings, not independently recovered
+      historical runtime logs. The repair wrapper defaults to the <code>vicuna_v1</code> conversation mode and
+      temperature 0.0. Hosted validation uses temperature 0.0; OpenAI image requests specify <code>detail=low</code>,
+      while Gemini receives inline image bytes. Token limits are optional in these entry points, so an exact historical
+      generation cap is not inferred from defaults. Local environment overrides and hosted model revisions can affect
+      reproduction.
+    </p>
+
+    <h4>A-C Explicit training objectives</h4>
+    <p>
+      Let ℓ<span class="ss"><span>+</span><span><i>θ</i>,<i>i</i></span></span> = log <i>π<sub>θ</sub></i>(<i>y</i><span class="ss"><span>+</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>)
+      and ℓ<span class="ss"><span>−</span><span><i>θ</i>,<i>i</i></span></span> = log <i>π<sub>θ</sub></i>(<i>y</i><span class="ss"><span>−</span><span><i>i</i></span></span> ∣ <i>I<sub>i</sub></i>, <i>x<sub>i</sub></i>);
+      define ℓ<span class="ss"><span>+</span><span>ref,<i>i</i></span></span> and ℓ<span class="ss"><span>−</span><span>ref,<i>i</i></span></span>
+      analogously. The standard preference gap is
+    </p>
+    <p class="eq">
+      Δ<sub><i>i</i></sub> = (ℓ<span class="ss"><span>+</span><span><i>θ</i>,<i>i</i></span></span> − ℓ<span class="ss"><span>−</span><span><i>θ</i>,<i>i</i></span></span>)
+      − (ℓ<span class="ss"><span>+</span><span>ref,<i>i</i></span></span> − ℓ<span class="ss"><span>−</span><span>ref,<i>i</i></span></span>).
+      <span class="no">(6)</span>
+    </p>
+    <p>
+      The standard loss is ℒ<sub>DPO</sub> = −𝔼<sub><i>i</i></sub> log <i>σ</i>(<i>β</i>Δ<sub><i>i</i></sub>). In the
+      direct HSA-DPO run, chosen-score weighting is disabled and rejected-score weighting enabled. With released
+      rejected score <i>w<sub>i</sub></i>, the implemented gap is
+    </p>
+    <p class="eq">
+      Δ<span class="ss"><span>HSA</span><span><i>i</i></span></span> = (ℓ<span class="ss"><span>+</span><span><i>θ</i>,<i>i</i></span></span> − <i>w<sub>i</sub></i> ℓ<span class="ss"><span>−</span><span><i>θ</i>,<i>i</i></span></span>)
+      − (ℓ<span class="ss"><span>+</span><span>ref,<i>i</i></span></span> − <i>w<sub>i</sub></i> ℓ<span class="ss"><span>−</span><span>ref,<i>i</i></span></span>),
+      <span class="no">(7)</span>
+    </p>
+    <p>
+      and ℒ<sub>HSA</sub> = −𝔼<sub><i>i</i></sub> log <i>σ</i>(<i>β</i>Δ<span class="ss"><span>HSA</span><span><i>i</i></span></span>).
+      This is weighting of rejected log-probability terms, rather than multiplication of the entire per-example loss.
+      The judged margin variants instead use
+    </p>
+    <p class="eq"><i>S̄<sub>i</sub></i> = clip(<i>S<sub>i</sub></i>, 0, 3) / 3, <span class="no">(8)</span></p>
+    <p class="eq"><i>m<sub>i</sub></i> = <i>λ</i><i>S̄<sub>i</sub></i>, <span class="no">(9)</span></p>
+    <p class="eq">ℒ<sub>margin</sub> = −𝔼<sub><i>i</i></sub> log <i>σ</i>(<i>β</i>(Δ<sub><i>i</i></sub> − <i>m<sub>i</sub></i>)). <span class="no">(10)</span></p>
+    <p>For a per-example loss <i>L<sub>i</sub></i>, its derivative with respect to the gap is</p>
+    <p class="eq">
+      <span class="frac"><span>∂<i>L<sub>i</sub></i></span><span>∂Δ<sub><i>i</i></sub></span></span>
+      = −<i>β</i> <i>σ</i>(−<i>β</i>(Δ<sub><i>i</i></sub> − <i>m<sub>i</sub></i>)).
+      <span class="no">(11)</span>
+    </p>
+    <p>
+      Thus, at a fixed gap, increasing severity increases the magnitude of the preference gradient. For
+      <i>λ</i> = 0.5 and <i>S<sub>i</sub></i> = 1, 2, 3, the gap margins are 1/6, 1/3, 1/2, and the corresponding
+      logit shifts are approximately 0.0167, 0.0333, 0.0500 at <i>β</i> = 0.1. These are algebraic properties of the
+      implemented objective, not additional empirical results.
+    </p>
+
+    <h3>B. Supplementary comparisons and evidence limits</h3>
+    <p>
+      Tables V and VI are calculations from the counts and scores in the main paper. They introduce no new model runs.
+      Rates are rounded to two decimal places; signed score differences use the reported two-decimal values.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <caption><strong>Table V.</strong> Derived preference-retention rates (%). Repair approval uses repaired candidates as its denominator.</caption>
+        <thead>
+          <tr><th>Path</th><th class="num">Initial acceptance</th><th class="num">Rejected pairs repaired</th><th class="num">Repair approval</th><th class="num">Verified retention</th><th class="num">Train-ready retention</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Zero-shot</td><td class="num">93.23</td><td class="num">83.27</td><td class="num">51.59</td><td class="num">96.14</td><td class="num">96.14</td></tr>
+          <tr><td>Two-shot</td><td class="num">85.05</td><td class="num">84.77</td><td class="num">70.18</td><td class="num">93.94</td><td class="num">93.89</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <caption><strong>Table VI.</strong> Signed metric changes relative to base LLaVA in reported score units. A negative change favors hallucination metrics, but is unfavorable for F1 and Cover. Missing two-shot F1 is not imputed.</caption>
+        <thead>
+          <tr><th>Model</th><th class="num">POPE F1</th><th class="num">CHAIR<sub>s</sub></th><th class="num">CHAIR<sub>i</sub></th><th class="num">AMBER-CHAIR</th><th class="num">Hal</th><th class="num">Cog</th><th class="num">Cover</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Standard DPO</td><td class="num">−0.30</td><td class="num">−15.33</td><td class="num">−3.74</td><td class="num">−2.50</td><td class="num">−10.70</td><td class="num">−1.80</td><td class="num">−1.80</td></tr>
+          <tr><td>Direct HSA-DPO</td><td class="num">−0.27</td><td class="num">−15.00</td><td class="num">−3.98</td><td class="num">−2.20</td><td class="num">−10.80</td><td class="num">−1.80</td><td class="num">−1.70</td></tr>
+          <tr><td>Zero-shot HSA-DPO-M</td><td class="num">−0.31</td><td class="num">−17.00</td><td class="num">−5.31</td><td class="num">−2.40</td><td class="num">−10.40</td><td class="num">−1.80</td><td class="num">−2.10</td></tr>
+          <tr><td>Two-shot HSA-DPO-M</td><td class="num">—</td><td class="num">−12.67</td><td class="num">−2.91</td><td class="num">−2.10</td><td class="num">−9.00</td><td class="num">−1.60</td><td class="num">−1.30</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px">
+      For a path with <i>N</i> = 8,386 source pairs, initially accepted count <i>A</i>, repaired count <i>R</i>, and
+      approved repair count <i>V</i>, verified retention is (<i>A</i> + <i>V</i>)/<i>N</i>. Repair approval is
+      <i>V</i>/<i>R</i>; it is not measured against all initially rejected pairs. Some rejected examples do not produce
+      retained repair candidates. The zero-shot counts satisfy 7,818 + 244 = 8,062, and the two-shot counts satisfy
+      7,132 + 746 = 7,878. The latter becomes 7,874 train-ready records. A four-record preparation loss is observed,
+      but its sample-specific causes are not established by the compact summaries.
+    </p>
+    <p>
+      For a metric <i>q</i>, Table VI reports Δ<i>q</i> = <i>q</i><sub>model</sub> − <i>q</i><sub>base</sub>. Negative
+      changes favor lower-is-better hallucination measures, but indicate deterioration for POPE F1 or AMBER-Cover.
+      Relative reduction, when useful, is (<i>q</i><sub>base</sub> − <i>q</i><sub>model</sub>)/<i>q</i><sub>base</sub>.
+      Zero-shot Object HalBench CHAIR<sub>s</sub> falls by 17.00 score points, a 32.08% relative reduction. Its
+      CHAIR<sub>i</sub> falls by 5.31 points, a 33.78% relative reduction. These arithmetic summaries do not establish
+      statistical significance.
+    </p>
+    <p>
+      The score-difference table is a metric comparison matrix, not a confusion matrix. Exact true-positive,
+      false-positive, true-negative, and false-negative counts cannot be recovered reliably from rounded precision,
+      recall, and accuracy without the evaluated sample count and prediction records. No confusion matrix, confidence
+      interval, seed variance, or per-category error distribution is fabricated. No independent human preference audit
+      is available in this report. The two-shot POPE recall/F1 remain unavailable.
+    </p>
+    <p>
+      Benchmark interpretation remains task-specific. POPE adversarial is binary object-presence evaluation. Object
+      HalBench measures unsupported object mentions in generated responses. The retained local AMBER summaries include
+      hallucination and coverage measures. Before claiming equivalence with a published leaderboard protocol,
+      reproduction should verify image subsets, prompts, generation settings, answer parsing, evaluator versions, and
+      per-example outputs. These details are not all recoverable from the retained aggregate records. More
+      conservative responses are a plausible explanation for the observed precision/recall and coverage tradeoffs,
+      rather than an established causal mechanism.
+    </p>
+
+    <h3>C. Prompts for the reported judged-preference paths</h3>
+    <p>
+      The following templates are extracted from the implementation. Braced fields indicate substituted sample content.
+      The image is supplied separately to the vision-language model; the calibration examples are text only.
+    </p>
+
+    <details class="prompt">
+      <summary>C-A Preference validation (Gemini-2.5-Flash-Lite and GPT-4o-mini)</summary>
+      <p>The same zero-shot template is used by both judges. The either-judge rule is applied after the two individual outputs and is not a request for judge consensus. For the two-shot setting, the block in C-B is inserted immediately before "Target pair to judge."</p>
+<pre>You are validating a hallucination-mitigation preference pair for a vision-language model.
+Use the image as the source of truth.
+Return exactly one JSON object and no other text.
+The JSON object must have exactly these keys: approved, reason.
+approved must be a JSON boolean.
+reason must be one concise sentence.
+Approve when the chosen rewrite clearly improves factual visual grounding over the rejected response, removes or reduces the tagged hallucination, and does not introduce a new important hallucination.
+Reject when the chosen rewrite is still unsupported by the image, loses essential correct content, or is not clearly better than the rejected response.
+Be conservative, but do not reject only because the chosen response is shorter.
+
+Target pair to judge:
+Question:
+{question}
+Rejected/original response:
+{rejected_response}
+Chosen/rewrite response:
+{chosen_response}
+Original hallucination tags and severity:
+{rejected_tag_text}
+
+Return only the JSON object now.</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>C-B Two-shot calibration block</summary>
+<pre>Two calibration examples follow. They are text-only examples for the decision rubric; do not assume their visual details are present in the target image.
+
+Example 1:
+Question:
+Describe the image.
+Rejected/original response:
+The image shows a child holding a red umbrella while a dog walks nearby.
+Chosen/rewrite response:
+The image shows a child holding an umbrella.
+Original hallucination tags and severity:
+object hallucination: dog nearby; attribute hallucination: red umbrella; severity major
+Expected JSON:
+{"approved": true, "reason": "The chosen response removes the unsupported dog and color claims while preserving the grounded umbrella detail."}
+
+Example 2:
+Question:
+What is happening in the scene?
+Rejected/original response:
+A man is sitting on a bench with a bicycle beside him.
+Chosen/rewrite response:
+A man is sitting on a bench beside a motorcycle in a park.
+Original hallucination tags and severity:
+object hallucination: bicycle beside him; severity moderate
+Expected JSON:
+{"approved": false, "reason": "The chosen response introduces unsupported motorcycle and park details, so it is not a reliable improvement."}</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>C-C Rejected-pair repair (LLaVA-1.5-7B)</summary>
+      <p>LLaVA receives the current chosen response, fixed rejected response, annotation text, and recorded API feedback (judge family, approval decision, and reason). Repair modifies the chosen text only; the rejected text and score are preserved.</p>
+<pre>You are repairing a hallucination-mitigation rewrite for a vision-language model.
+Use the image as the source of truth.
+Produce only the final corrected answer, with no markdown and no explanation.
+The current chosen rewrite was rejected by the API judges. Revise it so it is better grounded in the image, preserves correct useful details, removes unsupported details, and avoids adding new unsupported claims.
+
+Question:
+{question}
+Original rejected response:
+{rejected_response}
+Current chosen rewrite:
+{chosen_response}
+Original hallucination tags and severity:
+{rejected_tag_text}
+API judge feedback:
+{judge_feedback}
+
+Final corrected answer:</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>C-D Re-verification and output contract (GPT-4.1-mini)</summary>
+      <p>GPT-4.1-mini reuses the validation template with the repaired answer in the chosen field and the original rejected answer unchanged. The two-shot condition reuses the same calibration block. Initially accepted pairs and approved repairs are merged; failed repairs are excluded. The schema below is an illustration, not an observed approval.</p>
+<pre>{"approved": true, "reason": "..."}</pre>
+    </details>
+
+    <h3>D. Supporting annotation and rewrite templates</h3>
+    <p>
+      These templates document implemented supporting paths. They are not evidence that all released annotations were
+      regenerated, that a new detector was evaluated, or that every released preferred answer was rewritten locally.
+      Released annotations and preference pairs remain the main supervision sources for the reported experiments.
+      <code>{severity_rubric}</code> expands to the rubric in D-A.
+    </p>
+
+    <details class="prompt">
+      <summary>D-A Severity rubric</summary>
+<pre>Severity rubric:
+- Minor (1 point): localized visual error that does not alter the main scene understanding.
+- Moderate (2 points): noticeable object, attribute, or relation error that changes part of the scene.
+- Major (3 points): central object, count, action, or relation error that substantially changes the answer.
+Use only Minor, Moderate, or Major.</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>D-B Detailed-description annotation</summary>
+      <p>Uses Visual Genome region information and a description. Provided for annotation-path reproduction, not as evidence of a new hosted relabeling run.</p>
+<pre>Task instructions:
+You are tasked with evaluating the accuracy of a detailed description of an image against provided Visual Genome regions. Identify hallucinated object, attribute, and relationship claims, explain why they are hallucinations, assign severity scores, and provide a corrected rewritten description.
+{severity_rubric}
+
+Image Regions Information:
+{regions}
+Description:
+{description}
+
+Output Format:
+Tagged Description:
+Reasons:
+Scores:
+Rewritten Description:</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>D-C Visual complex reasoning annotation</summary>
+<pre>Task instructions:
+You are tasked with evaluating the accuracy of a complex reasoning answer for an image. Identify hallucinated object, attribute, and relationship claims, explain why they are hallucinations, assign severity scores, and provide a corrected rewritten answer. Do not tag more than three hallucination sentences.
+{severity_rubric}
+
+Complex reasoning:
+{reasoning}
+
+Output Format:
+Question and Tagged Answer:
+Reasons:
+Scores:
+Rewritten Answer:</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>D-D Local detector</summary>
+      <p>The output contains the three normalized categories, evidence spans, severity, and rationale, or the exact clean-response string.</p>
+<pre>You are the FAIF hallucination detector used for paper-path reproduction.
+Given the image, the task context, and a candidate response, output exactly one of:
+NO HALLUCINATION
+or a fine-grained Tags/Scores report.
+
+Tags format:
+Tags:
+&lt;object&gt;
+1. hallucinated object claim
+&lt;attribute&gt;
+1. hallucinated attribute claim
+&lt;relationship&gt;
+1. hallucinated relationship claim
+
+Scores format:
+Scores:
+&lt;object&gt;
+1. Evidence span: Major (3 points): concise visual rationale
+
+{severity_rubric}
+
+Rules:
+- Use only the three hallucination types: object, attribute, relationship.
+- If no hallucination is present, output NO HALLUCINATION exactly.
+- Do not include confidence, calibration, prose preambles, or markdown.
+
+Question or task context:
+{question}
+Candidate response:
+{candidate_response}</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>D-E Critique-guided rewrite</summary>
+      <p>The critique field is formatted as a list of type, severity, evidence text, and rationale.</p>
+<pre>You are rewriting a hallucinated vision-language response for the FAIF paper path.
+Use the image and verified critiques to produce the preferred answer.
+
+Question or task context:
+{question}
+Original response:
+{original_response}
+Detected hallucination tags and reasons:
+{formatted_critiques}
+
+Instructions:
+- The tags may not always be correct; rely on the image and remove only unsupported claims.
+- Correct or remove every identified hallucination.
+- Preserve accurate visual content from the original response.
+- Do not add unsupported objects, attributes, relations, counts, actions, or identities.
+- Output only the rewritten answer.</pre>
+    </details>
+
+    <details class="prompt">
+      <summary>D-F Optional critic and feedback-guided revision</summary>
+      <p>The optional critic returns feedback rather than a replacement answer; the revision template then produces revised text. This branch should not be conflated with the released-pair repair path used in the judged experiments.</p>
+<pre>You are a critic for a hallucination-mitigation rewrite of a vision-language response.
+Your job is to provide feedback only. Do not write the final answer.
+
+Question or task context:
+{question}
+Original response:
+{original_response}
+Detected hallucination tags and reasons from the local detector:
+{formatted_critiques}
+Initial rewritten response:
+{initial_rewrite}
+
+Check the initial rewrite against the image and detector findings.
+Return concise feedback about remaining hallucinations, unsupported additions, removed correct details, or over-edits. If the rewrite is acceptable, return exactly: NO CRITICAL ISSUES.
+Do not provide a replacement answer. Do not use markdown tables.
+
+---
+
+You are revising a hallucination-mitigation rewrite for the final preference pair.
+Use the image, local detector findings, the initial rewrite, and critic feedback.
+
+Question or task context:
+{question}
+Original response:
+{original_response}
+Detected hallucination tags and reasons:
+{formatted_critiques}
+Initial rewritten response:
+{initial_rewrite}
+Critic feedback:
+{critic_feedback}
+
+Instructions:
+- The detector and critic feedback may be wrong; rely on the image.
+- Remove unsupported claims and preserve correct supported details.
+- Do not add unsupported objects, attributes, relations, counts, actions, or identities.
+- Output only the final revised answer.</pre>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <p>
+    See the <a href="https://arxiv.org/abs/2611.20478">paper on arXiv</a> and the
+    <a href="https://github.com/BRAIN-Lab-AI/Fine-Grained-Hallucination-Detection-and-Severity-Aware-Mitigation-in-Vision-Language-Models">repository</a>
+    for the full methodology, references and interpretation.
+  </p>
+</footer>
+
+</body>
+</html>
